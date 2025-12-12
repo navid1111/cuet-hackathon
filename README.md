@@ -58,113 +58,6 @@ curl -X POST http://localhost:3000/v1/download/start \
 
 ---
 
-## CI/CD Pipeline
-
-### Pipeline Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        CI Pipeline Flow                                  │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│    ┌──────────────┐                                                     │
-│    │   Install    │  ← Installs deps once, caches node_modules          │
-│    │ Dependencies │                                                     │
-│    └──────┬───────┘                                                     │
-│           │                                                             │
-│           ▼                                                             │
-│    ┌──────────────┐    ┌──────────────┐                                │
-│    │    Lint      │    │   Format     │  ← Run in PARALLEL              │
-│    │   (ESLint)   │    │   (Prettier) │    Restore cached node_modules  │
-│    └──────┬───────┘    └──────┬───────┘                                │
-│           │                   │                                         │
-│           └─────────┬─────────┘                                         │
-│                     ▼                                                   │
-│           ┌──────────────────┐                                          │
-│           │    E2E Tests     │  ← Restore cached node_modules           │
-│           │                  │    Run directly with Node.js             │
-│           └────────┬─────────┘                                          │
-│                    ▼                                                    │
-│           ┌──────────────────┐                                          │
-│           │   Docker Build   │  ← Builds production image               │
-│           │  (layer cached)  │    Uses GitHub Actions cache             │
-│           └──────────────────┘                                          │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Why This Pipeline? (Comparison with Baseline)
-
-#### Baseline Approach (Before)
-
-```yaml
-jobs:
-  lint: # npm ci → lint + format (sequential)
-  test: # npm ci → e2e tests
-  build: # docker build
-```
-
-**Issues:**
-
-- `npm ci` runs **2 times** (lint job + test job) = ~60-90s wasted
-- Lint and format run **sequentially** in same job
-- No concurrency control (duplicate runs waste resources)
-
-#### Optimized Approach (Current)
-
-```yaml
-jobs:
-  install: # npm ci once, cache node_modules
-  lint: # restore cache → lint        ┐
-  format: # restore cache → format      ┘ PARALLEL
-  test: # restore cache → e2e
-  build: # docker build (layer cached)
-```
-
-**Improvements:**
-
-| Metric              | Baseline   | Optimized   | Savings        |
-| ------------------- | ---------- | ----------- | -------------- |
-| `npm ci` calls      | 2×         | 1× (cached) | ~60-90s        |
-| Lint + Format       | Sequential | Parallel    | ~50% time      |
-| Duplicate runs      | All run    | Cancelled   | $$ saved       |
-| Total pipeline time | ~4-5 min   | ~2-3 min    | ~40-50% faster |
-
-### Caching Strategy
-
-| Cache Type        | What's Cached           | Key                                      | Used By            |
-| ----------------- | ----------------------- | ---------------------------------------- | ------------------ |
-| **node_modules**  | Installed npm packages  | `node-modules-{hash(package-lock.json)}` | Lint, Format, Test |
-| **Docker layers** | Build layers via Buildx | GitHub Actions cache (`type=gha`)        | Build job only     |
-
-### Key Optimizations
-
-| Optimization                           | Benefit                                        |
-| -------------------------------------- | ---------------------------------------------- |
-| `concurrency.cancel-in-progress: true` | Cancels redundant runs on rapid pushes         |
-| Shared `node_modules` cache            | Avoids multiple `npm ci` calls per run         |
-| Parallel lint/format jobs              | Reduces wall-clock time by ~50%                |
-| `setup-node@v4` over containers        | Faster startup, better cache integration       |
-| Docker Buildx layer cache              | Incremental builds only rebuild changed layers |
-
-### Running Locally Before Push
-
-```bash
-# Run lint
-npm run lint
-
-# Run format check
-npm run format:check
-
-# Run E2E tests
-npm run test:e2e
-
-# Build Docker image
-docker build -f docker/Dockerfile.prod .
-```
-
----
-
 ### Challenge 1: Self-Hosted S3 Storage Integration
 
 #### Your Mission
@@ -403,6 +296,118 @@ A basic GitHub Actions workflow is already provided at `.github/workflows/ci.yml
 - Add security scanning (Snyk, CodeQL, Trivy)
 - Implement branch protection rules
 - Add Slack/Discord notifications for build status
+
+#### Our Solution: Optimized CI/CD Pipeline
+
+We implemented an optimized GitHub Actions pipeline that addresses all requirements with additional performance improvements.
+
+##### Pipeline Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        CI Pipeline Flow                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│    ┌──────────────┐                                                     │
+│    │   Install    │  ← Installs deps once, caches node_modules          │
+│    │ Dependencies │                                                     │
+│    └──────┬───────┘                                                     │
+│           │                                                             │
+│           ▼                                                             │
+│    ┌──────────────┐    ┌──────────────┐                                 │
+│    │    Lint      │    │   Format     │  ← Run in PARALLEL              │
+│    │   (ESLint)   │    │   (Prettier) │    Restore cached node_modules  │
+│    └──────┬───────┘    └──────┬───────┘                                 │
+│           │                   │                                         │
+│           └─────────┬─────────┘                                         │
+│                     ▼                                                   │
+│           ┌──────────────────┐                                          │
+│           │    E2E Tests     │  ← Restore cached node_modules           │
+│           │                  │    Run directly with Node.js             │
+│           └────────┬─────────┘                                          │
+│                    ▼                                                    │
+│           ┌──────────────────┐                                          │
+│           │   Docker Build   │  ← Builds via docker-compose.prod.yml    │
+│           │  (layer cached)  │    Uses GHA cache for Docker layers      │
+│           └──────────────────┘                                          │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+##### Comparison: Baseline vs Optimized
+
+**Baseline Approach (Before):**
+
+```yaml
+jobs:
+  lint: # npm ci → lint + format (sequential, in one job)
+  test: # npm ci → e2e tests (another npm ci)
+  build: # docker build
+```
+
+**Problems with baseline:**
+
+- `npm ci` runs **2 times** (lint + test jobs) = ~60-90s wasted per run
+- Lint and format run **sequentially** in same job
+- No concurrency control → duplicate runs on rapid pushes waste resources
+- Uses `container: node:24-slim` → slower startup, no Docker access
+
+**Optimized Approach (Current):**
+
+```yaml
+jobs:
+  install: # npm ci once → cache node_modules
+  lint: # restore cache → lint        ┐
+  format: # restore cache → format    ┘ RUN IN PARALLEL
+  test: # restore cache → e2e
+  build: # docker compose build (GHA layer cache)
+```
+
+##### Performance Improvements
+
+| Metric         | Baseline     | Optimized      | Reasoning                                     |
+| -------------- | ------------ | -------------- | --------------------------------------------- |
+| `npm ci` calls | 2× per run   | 1× (cached)    | Cache hit skips install entirely              |
+| Lint + Format  | Sequential   | Parallel       | Run simultaneously instead of one after other |
+| Duplicate runs | All execute  | Auto-cancelled | `cancel-in-progress: true` stops older runs   |
+| Docker build   | Full rebuild | Layer cache    | Only changed layers rebuild                   |
+
+> **Note:** Actual time savings depend on project size, dependency count, and cache hit rates. The optimizations reduce redundant work but exact numbers vary per project.
+
+##### Caching Strategy
+
+| Cache Type              | What's Cached           | Cache Key                                | Used By            |
+| ----------------------- | ----------------------- | ---------------------------------------- | ------------------ |
+| **node_modules**        | Installed npm packages  | `node-modules-{hash(package-lock.json)}` | Lint, Format, Test |
+| **Docker layers (GHA)** | Build layers via Buildx | GitHub Actions cache (`type=gha`)        | Build job only     |
+
+> **Note:** "GHA layer cache" and "GitHub Actions cache" refer to the same thing—Docker Buildx's `cache-from: type=gha` stores layer data in GitHub's cache storage, enabling incremental builds that only rebuild changed layers.
+
+##### Key Optimizations Explained
+
+| Optimization                           | What It Does                                                |
+| -------------------------------------- | ----------------------------------------------------------- |
+| `concurrency.cancel-in-progress: true` | Cancels older runs when new commits push to same branch     |
+| Dedicated `install` job                | Runs `npm ci` once, caches result for all downstream jobs   |
+| Parallel `lint` + `format` jobs        | Both restore cache and run simultaneously                   |
+| `setup-node@v4` instead of containers  | Faster startup (~5s vs ~30s), native Docker access          |
+| Docker Buildx with GHA cache           | Stores layers in GitHub cache, rebuilds only changed layers |
+
+##### Running Locally Before Push
+
+```bash
+# Run lint
+npm run lint
+
+# Run format check
+npm run format:check
+
+# Run E2E tests
+npm run test:e2e
+
+# Build Docker image (same as CI)
+docker compose -f docker/compose.prod.yml build
+```
 
 ---
 
