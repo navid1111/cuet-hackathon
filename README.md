@@ -991,6 +991,13 @@ npm run docker:prod  # Start with Docker (production)
 - Path traversal prevention for S3 keys
 - Graceful shutdown handling
 
+## Challenge Completed
+
+  ### Challenge 1 : S3 Storage 
+  <img width="1914" height="955" alt="image" src="https://github.com/user-attachments/assets/e8345491-852f-47da-8063-64bb540fb64d" />
+  ### Challenge 2: Architecture 
+  <img width="537" height="647" alt="image" src="https://github.com/user-attachments/assets/cfb2e521-8940-4078-8180-a3f0e48a33f1" />
+
 ## License
 
 MIT
