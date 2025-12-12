@@ -31,10 +31,8 @@ jobs:
 
       - name: Deploy to VM
         run: |
-          # Copy compose file to VM
           scp -i ~/.ssh/deploy_key.pem docker/compose.prod.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/delineate/
 
-          # Deploy
           ssh -i ~/.ssh/deploy_key.pem ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
             cd /opt/delineate
             export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
