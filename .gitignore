@@ -49,3 +49,6 @@ Thumbs.db
 # specs (local implementation tracking)
 specs/
 .specify/
+.github/prompts/
+.github/agents/
+IMPLEMENTATION_LOG.md
