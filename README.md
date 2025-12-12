@@ -475,14 +475,14 @@ npm run docker:prod
 
 ### Environment Variables
 
-| Variable | Development | Production | Description |
-|----------|------------|------------|-------------|
-| `MINIO_ENDPOINT` | `http://minio:9000` | `http://minio:9000` | MinIO S3-compatible storage |
-| `MINIO_ROOT_USER` | `admin` | `admin` | MinIO root username |
-| `MINIO_ROOT_PASSWORD` | `changemechangeme` | `CHANGE_THIS_IN_PRODUCTION` | MinIO root password |
-| `MINIO_BUCKET` | `downloads` | `downloads` | MinIO bucket name |
-| `REDIS_HOST` | `redis` | `redis` | Redis hostname |
-| `REDIS_PORT` | `6379` | `6379` | Redis port |
+| Variable              | Development         | Production                  | Description                 |
+| --------------------- | ------------------- | --------------------------- | --------------------------- |
+| `MINIO_ENDPOINT`      | `http://minio:9000` | `http://minio:9000`         | MinIO S3-compatible storage |
+| `MINIO_ROOT_USER`     | `admin`             | `admin`                     | MinIO root username         |
+| `MINIO_ROOT_PASSWORD` | `changemechangeme`  | `CHANGE_THIS_IN_PRODUCTION` | MinIO root password         |
+| `MINIO_BUCKET`        | `downloads`         | `downloads`                 | MinIO bucket name           |
+| `REDIS_HOST`          | `redis`             | `redis`                     | Redis hostname              |
+| `REDIS_PORT`          | `6379`              | `6379`                      | Redis port                  |
 
 ## Environment Variables
 

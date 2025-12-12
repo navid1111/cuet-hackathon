@@ -36,6 +36,7 @@ const EnvSchema = z.object({
   REDIS_HOST: z.string().default("redis"),
   REDIS_PORT: z.coerce.number().int().min(1).max(65535).default(6379),
   REDIS_DB: z.coerce.number().int().min(0).default(0),
+  REDIS_PASSWORD: z.string().optional(),
   SENTRY_DSN: optionalUrl,
   OTEL_EXPORTER_OTLP_ENDPOINT: optionalUrl,
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
@@ -270,12 +271,17 @@ const checkS3Health = async (): Promise<boolean> => {
   if (!env.ENABLE_STORAGE) return true; // Feature disabled
   if (!env.S3_BUCKET_NAME) return true; // Mock mode
   try {
-    // Use a lightweight HEAD request on a known path
+    // Use a lightweight HEAD request on a known path with 2s timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    
     const command = new HeadObjectCommand({
       Bucket: env.S3_BUCKET_NAME,
       Key: "__health_check_marker__",
     });
-    await s3Client.send(command);
+    
+    await s3Client.send(command, { abortSignal: controller.signal });
+    clearTimeout(timeoutId);
     return true;
   } catch (err) {
     // NotFound is fine - bucket is accessible
