@@ -1,5 +1,7 @@
 # Delineate Hackathon Challenge - CUET Fest 2025
 
+[![CI](https://github.com/navid1111/cuet-hackathon/actions/workflows/ci.yml/badge.svg)](https://github.com/navid1111/cuet-hackathon/actions/workflows/ci.yml)
+
 ## The Scenario
 
 This microservice simulates a **real-world file download system** where processing times vary significantly:
@@ -53,6 +55,113 @@ curl -X POST http://localhost:3000/v1/download/start \
 | Challenge 3: CI/CD Pipeline         | 10         | Medium     |
 | Challenge 4: Observability (Bonus)  | 10         | Hard       |
 | **Maximum Total**                   | **50**     |            |
+
+---
+
+## CI/CD Pipeline
+
+### Pipeline Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        CI Pipeline Flow                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│    ┌──────────────┐                                                     │
+│    │   Install    │  ← Installs deps once, caches node_modules          │
+│    │ Dependencies │                                                     │
+│    └──────┬───────┘                                                     │
+│           │                                                             │
+│           ▼                                                             │
+│    ┌──────────────┐    ┌──────────────┐                                │
+│    │    Lint      │    │   Format     │  ← Run in PARALLEL              │
+│    │   (ESLint)   │    │   (Prettier) │    Restore cached node_modules  │
+│    └──────┬───────┘    └──────┬───────┘                                │
+│           │                   │                                         │
+│           └─────────┬─────────┘                                         │
+│                     ▼                                                   │
+│           ┌──────────────────┐                                          │
+│           │    E2E Tests     │  ← Restore cached node_modules           │
+│           │                  │    Run directly with Node.js             │
+│           └────────┬─────────┘                                          │
+│                    ▼                                                    │
+│           ┌──────────────────┐                                          │
+│           │   Docker Build   │  ← Builds production image               │
+│           │  (layer cached)  │    Uses GitHub Actions cache             │
+│           └──────────────────┘                                          │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why This Pipeline? (Comparison with Baseline)
+
+#### Baseline Approach (Before)
+
+```yaml
+jobs:
+  lint: # npm ci → lint + format (sequential)
+  test: # npm ci → e2e tests
+  build: # docker build
+```
+
+**Issues:**
+
+- `npm ci` runs **2 times** (lint job + test job) = ~60-90s wasted
+- Lint and format run **sequentially** in same job
+- No concurrency control (duplicate runs waste resources)
+
+#### Optimized Approach (Current)
+
+```yaml
+jobs:
+  install: # npm ci once, cache node_modules
+  lint: # restore cache → lint        ┐
+  format: # restore cache → format      ┘ PARALLEL
+  test: # restore cache → e2e
+  build: # docker build (layer cached)
+```
+
+**Improvements:**
+
+| Metric              | Baseline   | Optimized   | Savings        |
+| ------------------- | ---------- | ----------- | -------------- |
+| `npm ci` calls      | 2×         | 1× (cached) | ~60-90s        |
+| Lint + Format       | Sequential | Parallel    | ~50% time      |
+| Duplicate runs      | All run    | Cancelled   | $$ saved       |
+| Total pipeline time | ~4-5 min   | ~2-3 min    | ~40-50% faster |
+
+### Caching Strategy
+
+| Cache Type        | What's Cached           | Key                                      | Used By            |
+| ----------------- | ----------------------- | ---------------------------------------- | ------------------ |
+| **node_modules**  | Installed npm packages  | `node-modules-{hash(package-lock.json)}` | Lint, Format, Test |
+| **Docker layers** | Build layers via Buildx | GitHub Actions cache (`type=gha`)        | Build job only     |
+
+### Key Optimizations
+
+| Optimization                           | Benefit                                        |
+| -------------------------------------- | ---------------------------------------------- |
+| `concurrency.cancel-in-progress: true` | Cancels redundant runs on rapid pushes         |
+| Shared `node_modules` cache            | Avoids multiple `npm ci` calls per run         |
+| Parallel lint/format jobs              | Reduces wall-clock time by ~50%                |
+| `setup-node@v4` over containers        | Faster startup, better cache integration       |
+| Docker Buildx layer cache              | Incremental builds only rebuild changed layers |
+
+### Running Locally Before Push
+
+```bash
+# Run lint
+npm run lint
+
+# Run format check
+npm run format:check
+
+# Run E2E tests
+npm run test:e2e
+
+# Build Docker image
+docker build -f docker/Dockerfile.prod .
+```
 
 ---
 

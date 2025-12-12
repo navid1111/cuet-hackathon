@@ -6,37 +6,106 @@ on:
   pull_request:
     branches: [main, master]
 
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  lint:
-    name: Lint
+  # ============================================
+  # Stage 1: Install dependencies (runs once)
+  # ============================================
+  install:
+    name: Install Dependencies
     runs-on: ubuntu-24.04
-    container:
-      image: node:24-slim
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Cache node_modules
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
       - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
         run: npm ci
+
+  # ============================================
+  # Stage 2: Lint & Format (parallel, reuse cache)
+  # ============================================
+  lint:
+    name: Lint
+    runs-on: ubuntu-24.04
+    needs: install
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Restore node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Run ESLint
         run: npm run lint
 
-      - name: Check formatting
-        run: npm run format:check
-
-  test:
-    name: E2E Tests
+  format:
+    name: Format Check
     runs-on: ubuntu-24.04
-    needs: lint
-    container:
-      image: node:24-slim
+    needs: install
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Restore node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
+
+      - name: Check formatting
+        run: npm run format:check
+
+  # ============================================
+  # Stage 3: E2E Tests (after lint & format pass)
+  # ============================================
+  test:
+    name: E2E Tests
+    runs-on: ubuntu-24.04
+    needs: [lint, format]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Restore node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('package-lock.json') }}
 
       - name: Run E2E tests
         run: npm run test:e2e
@@ -44,7 +113,10 @@ jobs:
           NODE_ENV: development
           PORT: 3000
           S3_REGION: us-east-1
-          S3_BUCKET_NAME: ""
+          S3_ENDPOINT: http://localhost:9000
+          S3_ACCESS_KEY_ID: minioadmin
+          S3_SECRET_ACCESS_KEY: minioadmin
+          S3_BUCKET_NAME: downloads
           S3_FORCE_PATH_STYLE: "true"
           SENTRY_DSN: ""
           OTEL_EXPORTER_OTLP_ENDPOINT: ""
@@ -53,6 +125,9 @@ jobs:
           RATE_LIMIT_MAX_REQUESTS: "100"
           CORS_ORIGINS: "*"
 
+  # ============================================
+  # Stage 4: Docker Build (independent layer cache)
+  # ============================================
   build:
     name: Build Docker Image
     runs-on: ubuntu-24.04
