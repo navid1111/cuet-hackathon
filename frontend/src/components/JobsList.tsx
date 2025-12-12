@@ -27,8 +27,9 @@ export function JobsList() {
       </div>
       <div style={styles.info}>
         <p style={styles.infoText}>
-          <strong>Phase 4 Feature:</strong> This component will display download jobs with status tracking, 
-          progress bars, and download links once the backend job endpoints are implemented.
+          <strong>Phase 4 Feature:</strong> This component will display download
+          jobs with status tracking, progress bars, and download links once the
+          backend job endpoints are implemented.
         </p>
         <div style={styles.features}>
           <h4 style={styles.featuresTitle}>Planned Features:</h4>
@@ -47,84 +48,84 @@ export function JobsList() {
 
 const styles = {
   card: {
-    backgroundColor: '#1f2937',
-    borderRadius: '8px',
-    padding: '24px',
-    marginBottom: '20px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-    color: '#f3f4f6',
+    backgroundColor: "#1f2937",
+    borderRadius: "8px",
+    padding: "24px",
+    marginBottom: "20px",
+    boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+    color: "#f3f4f6",
   },
   title: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    marginBottom: '16px',
-    color: '#f9fafb',
+    fontSize: "24px",
+    fontWeight: "bold",
+    marginBottom: "16px",
+    color: "#f9fafb",
   },
   placeholder: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '60px 20px',
-    backgroundColor: '#111827',
-    borderRadius: '8px',
-    border: '2px dashed #374151',
+    display: "flex",
+    flexDirection: "column" as const,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "60px 20px",
+    backgroundColor: "#111827",
+    borderRadius: "8px",
+    border: "2px dashed #374151",
   },
   icon: {
-    width: '80px',
-    height: '80px',
-    color: '#4b5563',
-    marginBottom: '16px',
+    width: "80px",
+    height: "80px",
+    color: "#4b5563",
+    marginBottom: "16px",
   },
   placeholderTitle: {
-    fontSize: '20px',
-    fontWeight: '600',
-    color: '#9ca3af',
-    marginBottom: '8px',
+    fontSize: "20px",
+    fontWeight: "600",
+    color: "#9ca3af",
+    marginBottom: "8px",
   },
   placeholderText: {
-    fontSize: '14px',
-    color: '#6b7280',
-    textAlign: 'center' as const,
-    maxWidth: '400px',
+    fontSize: "14px",
+    color: "#6b7280",
+    textAlign: "center" as const,
+    maxWidth: "400px",
   },
   comingSoon: {
-    marginTop: '20px',
+    marginTop: "20px",
   },
   badge: {
-    backgroundColor: '#3b82f6',
-    color: '#ffffff',
-    padding: '6px 16px',
-    borderRadius: '20px',
-    fontSize: '12px',
-    fontWeight: '600',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.5px',
+    backgroundColor: "#3b82f6",
+    color: "#ffffff",
+    padding: "6px 16px",
+    borderRadius: "20px",
+    fontSize: "12px",
+    fontWeight: "600",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.5px",
   },
   info: {
-    marginTop: '24px',
-    padding: '20px',
-    backgroundColor: '#111827',
-    borderRadius: '8px',
-    border: '1px solid #374151',
+    marginTop: "24px",
+    padding: "20px",
+    backgroundColor: "#111827",
+    borderRadius: "8px",
+    border: "1px solid #374151",
   },
   infoText: {
-    fontSize: '14px',
-    color: '#d1d5db',
-    lineHeight: '1.6',
-    marginBottom: '16px',
+    fontSize: "14px",
+    color: "#d1d5db",
+    lineHeight: "1.6",
+    marginBottom: "16px",
   },
   features: {
-    marginTop: '16px',
+    marginTop: "16px",
   },
   featuresTitle: {
-    fontSize: '14px',
-    fontWeight: '600',
-    color: '#e5e7eb',
-    marginBottom: '12px',
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#e5e7eb",
+    marginBottom: "12px",
   },
   featuresList: {
-    listStyle: 'none',
+    listStyle: "none",
     padding: 0,
     margin: 0,
   },
@@ -134,18 +135,18 @@ const styles = {
 const ListItem = ({ children }: { children: React.ReactNode }) => (
   <li
     style={{
-      fontSize: '13px',
-      color: '#9ca3af',
-      padding: '6px 0',
-      paddingLeft: '20px',
-      position: 'relative' as const,
+      fontSize: "13px",
+      color: "#9ca3af",
+      padding: "6px 0",
+      paddingLeft: "20px",
+      position: "relative" as const,
     }}
   >
     <span
       style={{
-        position: 'absolute' as const,
+        position: "absolute" as const,
         left: 0,
-        color: '#3b82f6',
+        color: "#3b82f6",
       }}
     >
       ▸
@@ -184,14 +185,17 @@ export function JobsListEnhanced() {
       </div>
       <div style={styles.info}>
         <p style={styles.infoText}>
-          <strong>Phase 4 Feature:</strong> This component will display download jobs with status tracking, 
-          progress bars, and download links once the backend job endpoints are implemented.
+          <strong>Phase 4 Feature:</strong> This component will display download
+          jobs with status tracking, progress bars, and download links once the
+          backend job endpoints are implemented.
         </p>
         <div style={styles.features}>
           <h4 style={styles.featuresTitle}>Planned Features:</h4>
           <ul style={styles.featuresList}>
             <ListItem>Create new download jobs</ListItem>
-            <ListItem>Real-time status updates (queued → processing → completed)</ListItem>
+            <ListItem>
+              Real-time status updates (queued → processing → completed)
+            </ListItem>
             <ListItem>Progress tracking (0-100%)</ListItem>
             <ListItem>Download links with presigned URLs</ListItem>
             <ListItem>Job history and management</ListItem>

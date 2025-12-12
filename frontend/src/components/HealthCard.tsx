@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
-import { captureException } from '../sentry';
+import { useEffect, useState } from "react";
+import { captureException } from "../sentry";
 
 interface HealthStatus {
-  status: 'healthy' | 'degraded' | 'unhealthy';
+  status: "healthy" | "degraded" | "unhealthy";
   checks: {
-    storage?: 'ok' | 'fail';
-    jobs?: 'ok' | 'fail';
+    storage?: "ok" | "fail";
+    jobs?: "ok" | "fail";
   };
 }
 
@@ -20,30 +20,28 @@ export function HealthCard() {
         setLoading(true);
         setError(null);
         // Use /api proxy configured in vite.config.ts to avoid CORS issues
-        const response = await fetch('/api/health');
+        const response = await fetch("/api/health");
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
         setHealth(data);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch health status';
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to fetch health status";
         setError(errorMessage);
-        
+
         // Send health check errors to Sentry
-        captureException(
-          err instanceof Error ? err : new Error(String(err)),
-          {
-            tags: {
-              component: 'HealthCard',
-              errorType: 'health-check-failure'
-            },
-            extra: {
-              errorMessage,
-              timestamp: new Date().toISOString()
-            }
-          }
-        );
+        captureException(err instanceof Error ? err : new Error(String(err)), {
+          tags: {
+            component: "HealthCard",
+            errorType: "health-check-failure",
+          },
+          extra: {
+            errorMessage,
+            timestamp: new Date().toISOString(),
+          },
+        });
       } finally {
         setLoading(false);
       }
@@ -57,31 +55,31 @@ export function HealthCard() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'healthy':
-      case 'ok':
-        return '#10b981'; // green
-      case 'degraded':
-        return '#f59e0b'; // amber
-      case 'unhealthy':
-      case 'fail':
-        return '#ef4444'; // red
+      case "healthy":
+      case "ok":
+        return "#10b981"; // green
+      case "degraded":
+        return "#f59e0b"; // amber
+      case "unhealthy":
+      case "fail":
+        return "#ef4444"; // red
       default:
-        return '#6b7280'; // gray
+        return "#6b7280"; // gray
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'healthy':
-      case 'ok':
-        return '✓';
-      case 'degraded':
-        return '⚠';
-      case 'unhealthy':
-      case 'fail':
-        return '✗';
+      case "healthy":
+      case "ok":
+        return "✓";
+      case "degraded":
+        return "⚠";
+      case "unhealthy":
+      case "fail":
+        return "✗";
       default:
-        return '?';
+        return "?";
     }
   };
 
@@ -98,8 +96,8 @@ export function HealthCard() {
     return (
       <div style={styles.card}>
         <h2 style={styles.title}>System Health</h2>
-        <div style={{ ...styles.status, color: getStatusColor('fail') }}>
-          <span style={styles.icon}>{getStatusIcon('fail')}</span>
+        <div style={{ ...styles.status, color: getStatusColor("fail") }}>
+          <span style={styles.icon}>{getStatusIcon("fail")}</span>
           Error: {error}
         </div>
       </div>
@@ -149,69 +147,69 @@ export function HealthCard() {
 
 const styles = {
   card: {
-    backgroundColor: '#1f2937',
-    borderRadius: '8px',
-    padding: '24px',
-    marginBottom: '20px',
-    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-    color: '#f3f4f6',
+    backgroundColor: "#1f2937",
+    borderRadius: "8px",
+    padding: "24px",
+    marginBottom: "20px",
+    boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+    color: "#f3f4f6",
   },
   title: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    marginBottom: '16px',
-    color: '#f9fafb',
+    fontSize: "24px",
+    fontWeight: "bold",
+    marginBottom: "16px",
+    color: "#f9fafb",
   },
   loading: {
-    color: '#9ca3af',
-    fontSize: '14px',
+    color: "#9ca3af",
+    fontSize: "14px",
   },
   status: {
-    fontSize: '18px',
-    marginBottom: '20px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
+    fontSize: "18px",
+    marginBottom: "20px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
   },
   icon: {
-    fontSize: '24px',
-    fontWeight: 'bold',
+    fontSize: "24px",
+    fontWeight: "bold",
   },
   statusText: {
-    fontSize: '16px',
+    fontSize: "16px",
   },
   checks: {
-    marginTop: '16px',
+    marginTop: "16px",
   },
   checksTitle: {
-    fontSize: '16px',
-    fontWeight: '600',
-    marginBottom: '12px',
-    color: '#e5e7eb',
+    fontSize: "16px",
+    fontWeight: "600",
+    marginBottom: "12px",
+    color: "#e5e7eb",
   },
   check: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '8px 0',
-    fontSize: '14px',
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "8px 0",
+    fontSize: "14px",
   },
   checkLabel: {
-    fontWeight: '500',
-    minWidth: '140px',
-    color: '#d1d5db',
+    fontWeight: "500",
+    minWidth: "140px",
+    color: "#d1d5db",
   },
   checkValue: {
-    fontFamily: 'monospace',
-    padding: '2px 8px',
-    backgroundColor: '#374151',
-    borderRadius: '4px',
-    color: '#e5e7eb',
+    fontFamily: "monospace",
+    padding: "2px 8px",
+    backgroundColor: "#374151",
+    borderRadius: "4px",
+    color: "#e5e7eb",
   },
   footer: {
-    marginTop: '16px',
-    fontSize: '12px',
-    color: '#9ca3af',
-    fontStyle: 'italic',
+    marginTop: "16px",
+    fontSize: "12px",
+    color: "#9ca3af",
+    fontStyle: "italic",
   },
 };

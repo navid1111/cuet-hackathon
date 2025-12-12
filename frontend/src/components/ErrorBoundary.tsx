@@ -1,6 +1,6 @@
-import { Component } from 'react';
-import type { ErrorInfo, ReactNode } from 'react';
-import * as Sentry from '@sentry/react';
+import { Component } from "react";
+import type { ErrorInfo, ReactNode } from "react";
+import * as Sentry from "@sentry/react";
 
 interface Props {
   children: ReactNode;
@@ -22,7 +22,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
     Sentry.captureException(error, {
       contexts: {
         react: {
@@ -59,7 +59,8 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
             <h1 style={styles.title}>Oops! Something went wrong</h1>
             <p style={styles.message}>
-              The application encountered an unexpected error. This error has been logged and reported.
+              The application encountered an unexpected error. This error has
+              been logged and reported.
             </p>
             {this.state.error && (
               <div style={styles.errorDetails}>
@@ -67,7 +68,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   <summary style={styles.summary}>Error Details</summary>
                   <pre style={styles.pre}>
                     {this.state.error.toString()}
-                    {'\n\n'}
+                    {"\n\n"}
                     {this.state.error.stack}
                   </pre>
                 </details>
@@ -95,83 +96,83 @@ export class ErrorBoundary extends Component<Props, State> {
 
 const styles = {
   container: {
-    minHeight: '100vh',
-    backgroundColor: '#111827',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '20px',
+    minHeight: "100vh",
+    backgroundColor: "#111827",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "20px",
   },
   card: {
-    backgroundColor: '#1f2937',
-    borderRadius: '12px',
-    padding: '40px',
-    maxWidth: '600px',
-    width: '100%',
-    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
+    backgroundColor: "#1f2937",
+    borderRadius: "12px",
+    padding: "40px",
+    maxWidth: "600px",
+    width: "100%",
+    boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)",
   },
   iconContainer: {
-    display: 'flex',
-    justifyContent: 'center',
-    marginBottom: '24px',
+    display: "flex",
+    justifyContent: "center",
+    marginBottom: "24px",
   },
   icon: {
-    width: '64px',
-    height: '64px',
-    color: '#ef4444',
+    width: "64px",
+    height: "64px",
+    color: "#ef4444",
   },
   title: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    color: '#f9fafb',
-    textAlign: 'center' as const,
-    marginBottom: '16px',
+    fontSize: "24px",
+    fontWeight: "bold",
+    color: "#f9fafb",
+    textAlign: "center" as const,
+    marginBottom: "16px",
   },
   message: {
-    fontSize: '16px',
-    color: '#d1d5db',
-    textAlign: 'center' as const,
-    marginBottom: '24px',
-    lineHeight: '1.6',
+    fontSize: "16px",
+    color: "#d1d5db",
+    textAlign: "center" as const,
+    marginBottom: "24px",
+    lineHeight: "1.6",
   },
   errorDetails: {
-    marginTop: '24px',
-    marginBottom: '24px',
+    marginTop: "24px",
+    marginBottom: "24px",
   },
   summary: {
-    fontSize: '14px',
-    color: '#9ca3af',
-    cursor: 'pointer',
-    marginBottom: '12px',
-    userSelect: 'none' as const,
+    fontSize: "14px",
+    color: "#9ca3af",
+    cursor: "pointer",
+    marginBottom: "12px",
+    userSelect: "none" as const,
   },
   pre: {
-    backgroundColor: '#111827',
-    color: '#ef4444',
-    padding: '16px',
-    borderRadius: '8px',
-    fontSize: '12px',
-    overflow: 'auto',
-    maxHeight: '200px',
-    fontFamily: 'monospace',
+    backgroundColor: "#111827",
+    color: "#ef4444",
+    padding: "16px",
+    borderRadius: "8px",
+    fontSize: "12px",
+    overflow: "auto",
+    maxHeight: "200px",
+    fontFamily: "monospace",
   },
   actions: {
-    display: 'flex',
-    gap: '12px',
-    justifyContent: 'center',
+    display: "flex",
+    gap: "12px",
+    justifyContent: "center",
   },
   button: {
-    padding: '12px 24px',
-    borderRadius: '8px',
-    fontSize: '14px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    border: 'none',
-    backgroundColor: '#3b82f6',
-    color: '#ffffff',
-    transition: 'background-color 0.2s',
+    padding: "12px 24px",
+    borderRadius: "8px",
+    fontSize: "14px",
+    fontWeight: "600",
+    cursor: "pointer",
+    border: "none",
+    backgroundColor: "#3b82f6",
+    color: "#ffffff",
+    transition: "background-color 0.2s",
   },
   buttonSecondary: {
-    backgroundColor: '#374151',
+    backgroundColor: "#374151",
   },
 };
