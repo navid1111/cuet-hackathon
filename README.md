@@ -97,10 +97,10 @@ curl -X POST http://localhost:3000/v1/download/start \
 
 The CI pipeline is optimized for **cost efficiency** and **speed** using a multi-layer caching approach:
 
-| Cache Type | What's Cached | Key | Used By |
-|------------|---------------|-----|---------|
-| **node_modules** | Installed npm packages | `node-modules-{hash(package-lock.json)}` | Lint, Format, Test |
-| **Docker layers** | Build layers via Buildx | GitHub Actions cache (`type=gha`) | Build job only |
+| Cache Type        | What's Cached           | Key                                      | Used By            |
+| ----------------- | ----------------------- | ---------------------------------------- | ------------------ |
+| **node_modules**  | Installed npm packages  | `node-modules-{hash(package-lock.json)}` | Lint, Format, Test |
+| **Docker layers** | Build layers via Buildx | GitHub Actions cache (`type=gha`)        | Build job only     |
 
 #### Why This Approach?
 
@@ -112,12 +112,12 @@ The CI pipeline is optimized for **cost efficiency** and **speed** using a multi
 
 ### Cost Optimization
 
-| Optimization | Benefit |
-|--------------|---------|
-| `concurrency.cancel-in-progress: true` | Cancels redundant runs on rapid pushes |
-| Shared `node_modules` cache | Avoids 3x `npm ci` calls per run |
-| Parallel lint/format | Reduces wall-clock time |
-| Docker layer cache | Incremental builds only rebuild changed layers |
+| Optimization                           | Benefit                                        |
+| -------------------------------------- | ---------------------------------------------- |
+| `concurrency.cancel-in-progress: true` | Cancels redundant runs on rapid pushes         |
+| Shared `node_modules` cache            | Avoids 3x `npm ci` calls per run               |
+| Parallel lint/format                   | Reduces wall-clock time                        |
+| Docker layer cache                     | Incremental builds only rebuild changed layers |
 
 ### Running Locally Before Push
 
@@ -558,14 +558,14 @@ npm run docker:prod
 
 ### Environment Variables
 
-| Variable | Development | Production | Description |
-|----------|------------|------------|-------------|
-| `MINIO_ENDPOINT` | `http://minio:9000` | `http://minio:9000` | MinIO S3-compatible storage |
-| `MINIO_ROOT_USER` | `admin` | `admin` | MinIO root username |
-| `MINIO_ROOT_PASSWORD` | `changemechangeme` | `CHANGE_THIS_IN_PRODUCTION` | MinIO root password |
-| `MINIO_BUCKET` | `downloads` | `downloads` | MinIO bucket name |
-| `REDIS_HOST` | `redis` | `redis` | Redis hostname |
-| `REDIS_PORT` | `6379` | `6379` | Redis port |
+| Variable              | Development         | Production                  | Description                 |
+| --------------------- | ------------------- | --------------------------- | --------------------------- |
+| `MINIO_ENDPOINT`      | `http://minio:9000` | `http://minio:9000`         | MinIO S3-compatible storage |
+| `MINIO_ROOT_USER`     | `admin`             | `admin`                     | MinIO root username         |
+| `MINIO_ROOT_PASSWORD` | `changemechangeme`  | `CHANGE_THIS_IN_PRODUCTION` | MinIO root password         |
+| `MINIO_BUCKET`        | `downloads`         | `downloads`                 | MinIO bucket name           |
+| `REDIS_HOST`          | `redis`             | `redis`                     | Redis hostname              |
+| `REDIS_PORT`          | `6379`              | `6379`                      | Redis port                  |
 
 ## Environment Variables
 
