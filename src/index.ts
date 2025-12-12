@@ -339,7 +339,10 @@ const JobStatusResponseSchema = z
 const JobDownloadResponseSchema = z
   .object({
     url: z.url().openapi({ description: "Presigned S3 download URL" }),
-    expiresIn: z.number().int().openapi({ description: "URL validity in seconds" }),
+    expiresIn: z
+      .number()
+      .int()
+      .openapi({ description: "URL validity in seconds" }),
     contentType: z.string().optional(),
     size: z.number().int().optional(),
   })
@@ -786,11 +789,16 @@ app.openapi(createJobRoute, async (c) => {
   try {
     // Store job data in Redis
     await redis.mset(
-      REDIS_KEYS.status(jobId), "queued",
-      REDIS_KEYS.progress(jobId), "0",
-      REDIS_KEYS.payload(jobId), JSON.stringify(payload),
-      REDIS_KEYS.createdAt(jobId), now,
-      REDIS_KEYS.updatedAt(jobId), now,
+      REDIS_KEYS.status(jobId),
+      "queued",
+      REDIS_KEYS.progress(jobId),
+      "0",
+      REDIS_KEYS.payload(jobId),
+      JSON.stringify(payload),
+      REDIS_KEYS.createdAt(jobId),
+      now,
+      REDIS_KEYS.updatedAt(jobId),
+      now,
     );
 
     // Push to job queue
@@ -826,7 +834,8 @@ const getJobStatusRoute = createRoute({
   path: "/jobs/{jobId}",
   tags: ["Jobs"],
   summary: "Get job status",
-  description: "Returns the current status of a job, including progress and download URL if completed.",
+  description:
+    "Returns the current status of a job, including progress and download URL if completed.",
   request: {
     params: z.object({
       jobId: z.uuid().openapi({ description: "Job ID" }),
@@ -864,14 +873,15 @@ app.openapi(getJobStatusRoute, async (c) => {
   const { jobId } = c.req.valid("param");
 
   try {
-    const [status, progress, _resultKey, error, createdAt, updatedAt] = await redis.mget(
-      REDIS_KEYS.status(jobId),
-      REDIS_KEYS.progress(jobId),
-      REDIS_KEYS.resultKey(jobId),
-      REDIS_KEYS.error(jobId),
-      REDIS_KEYS.createdAt(jobId),
-      REDIS_KEYS.updatedAt(jobId),
-    );
+    const [status, progress, _resultKey, error, createdAt, updatedAt] =
+      await redis.mget(
+        REDIS_KEYS.status(jobId),
+        REDIS_KEYS.progress(jobId),
+        REDIS_KEYS.resultKey(jobId),
+        REDIS_KEYS.error(jobId),
+        REDIS_KEYS.createdAt(jobId),
+        REDIS_KEYS.updatedAt(jobId),
+      );
 
     // _resultKey used to check completion, but downloadUrl is constructed from jobId
     void _resultKey;
@@ -922,7 +932,8 @@ const getDownloadUrlRoute = createRoute({
   path: "/download/{jobId}",
   tags: ["Jobs"],
   summary: "Get download URL for completed job",
-  description: "Returns a presigned S3 URL for downloading the job result. Only available for completed jobs.",
+  description:
+    "Returns a presigned S3 URL for downloading the job result. Only available for completed jobs.",
   request: {
     params: z.object({
       jobId: z.uuid().openapi({ description: "Job ID" }),
@@ -1077,11 +1088,9 @@ app.openapi(getDownloadUrlRoute, async (c) => {
 // Background Worker
 // ============================================
 
- 
 let workerRunning = false;
 
 const startWorker = async () => {
-   
   if (workerRunning) return;
   workerRunning = true;
 
@@ -1102,14 +1111,19 @@ const startWorker = async () => {
     try {
       // Update status to processing
       await redis.mset(
-        REDIS_KEYS.status(jobId), "processing",
-        REDIS_KEYS.progress(jobId), "0",
-        REDIS_KEYS.updatedAt(jobId), now,
+        REDIS_KEYS.status(jobId),
+        "processing",
+        REDIS_KEYS.progress(jobId),
+        "0",
+        REDIS_KEYS.updatedAt(jobId),
+        now,
       );
 
       // Get payload
       const payloadStr = await redis.get(REDIS_KEYS.payload(jobId));
-      const payload: Record<string, unknown> = payloadStr ? JSON.parse(payloadStr) as Record<string, unknown> : {};
+      const payload: Record<string, unknown> = payloadStr
+        ? (JSON.parse(payloadStr) as Record<string, unknown>)
+        : {};
       console.log(`[Worker] Job ${jobId} payload:`, payload);
 
       // Simulate processing with progress updates
@@ -1121,20 +1135,24 @@ const startWorker = async () => {
         await sleep(stepDelay);
         const progress = Math.floor((step / totalSteps) * 100);
         await redis.mset(
-          REDIS_KEYS.progress(jobId), String(progress),
-          REDIS_KEYS.updatedAt(jobId), new Date().toISOString(),
+          REDIS_KEYS.progress(jobId),
+          String(progress),
+          REDIS_KEYS.updatedAt(jobId),
+          new Date().toISOString(),
         );
         console.log(`[Worker] Job ${jobId} progress: ${String(progress)}%`);
       }
 
       // Write result to MinIO
       const resultKey = `${jobId}.bin`;
-      const resultData = Buffer.from(JSON.stringify({
-        jobId,
-        payload,
-        completedAt: new Date().toISOString(),
-        processingTimeMs: delayMs,
-      }));
+      const resultData = Buffer.from(
+        JSON.stringify({
+          jobId,
+          payload,
+          completedAt: new Date().toISOString(),
+          processingTimeMs: delayMs,
+        }),
+      );
 
       let uploadedToS3 = false;
       if (env.S3_BUCKET_NAME !== "") {
@@ -1149,7 +1167,10 @@ const startWorker = async () => {
           console.log(`[Worker] Uploaded result to downloads/${resultKey}`);
           uploadedToS3 = true;
         } catch (s3Err) {
-          console.warn(`[Worker] S3 upload failed (continuing without upload):`, s3Err instanceof Error ? s3Err.message : s3Err);
+          console.warn(
+            `[Worker] S3 upload failed (continuing without upload):`,
+            s3Err instanceof Error ? s3Err.message : s3Err,
+          );
           // Continue without S3 - job still completes
         }
       }
@@ -1157,17 +1178,24 @@ const startWorker = async () => {
       // Mark job as completed (with or without S3 result)
       if (uploadedToS3) {
         await redis.mset(
-          REDIS_KEYS.status(jobId), "completed",
-          REDIS_KEYS.progress(jobId), "100",
-          REDIS_KEYS.resultKey(jobId), `downloads/${resultKey}`,
-          REDIS_KEYS.updatedAt(jobId), new Date().toISOString(),
+          REDIS_KEYS.status(jobId),
+          "completed",
+          REDIS_KEYS.progress(jobId),
+          "100",
+          REDIS_KEYS.resultKey(jobId),
+          `downloads/${resultKey}`,
+          REDIS_KEYS.updatedAt(jobId),
+          new Date().toISOString(),
         );
       } else {
         // No S3 result, but job still completed successfully
         await redis.mset(
-          REDIS_KEYS.status(jobId), "completed",
-          REDIS_KEYS.progress(jobId), "100",
-          REDIS_KEYS.updatedAt(jobId), new Date().toISOString(),
+          REDIS_KEYS.status(jobId),
+          "completed",
+          REDIS_KEYS.progress(jobId),
+          "100",
+          REDIS_KEYS.updatedAt(jobId),
+          new Date().toISOString(),
         );
         console.log(`[Worker] Job ${jobId} completed (no S3 result available)`);
       }
@@ -1176,9 +1204,12 @@ const startWorker = async () => {
     } catch (err) {
       console.error(`[Worker] Job ${jobId} failed:`, err);
       await redis.mset(
-        REDIS_KEYS.status(jobId), "failed",
-        REDIS_KEYS.error(jobId), err instanceof Error ? err.message : "Unknown error",
-        REDIS_KEYS.updatedAt(jobId), new Date().toISOString(),
+        REDIS_KEYS.status(jobId),
+        "failed",
+        REDIS_KEYS.error(jobId),
+        err instanceof Error ? err.message : "Unknown error",
+        REDIS_KEYS.updatedAt(jobId),
+        new Date().toISOString(),
       );
     }
   };
@@ -1210,12 +1241,15 @@ const stopWorker = () => {
 };
 
 // Start worker after Redis connection
-redis.connect().then(() => {
-  console.log("[Redis] Connected successfully");
-  startWorker().catch(console.error);
-}).catch((err: unknown) => {
-  console.error("[Redis] Failed to connect:", err);
-});
+redis
+  .connect()
+  .then(() => {
+    console.log("[Redis] Connected successfully");
+    startWorker().catch(console.error);
+  })
+  .catch((err: unknown) => {
+    console.error("[Redis] Failed to connect:", err);
+  });
 
 // OpenAPI spec endpoint (disabled in production)
 if (env.NODE_ENV !== "production") {

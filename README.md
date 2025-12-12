@@ -241,12 +241,12 @@ We implemented a **polling-based async architecture** using Redis for job queue 
 
 ##### API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/jobs` | POST | Create a new async job |
-| `/jobs/{jobId}` | GET | Get job status and progress |
-| `/download/{jobId}` | GET | Get presigned download URL |
-| `/health` | GET | Health check (includes `storage` and `jobs` checks) |
+| Endpoint            | Method | Description                                         |
+| ------------------- | ------ | --------------------------------------------------- |
+| `/jobs`             | POST   | Create a new async job                              |
+| `/jobs/{jobId}`     | GET    | Get job status and progress                         |
+| `/download/{jobId}` | GET    | Get presigned download URL                          |
+| `/health`           | GET    | Health check (includes `storage` and `jobs` checks) |
 
 ##### Manual Testing with curl
 
@@ -292,7 +292,7 @@ while true; do
   STATUS=$(curl -s http://localhost:3000/jobs/$JOB_ID | jq -r '.status')
   PROGRESS=$(curl -s http://localhost:3000/jobs/$JOB_ID | jq -r '.progress')
   echo "Status: $STATUS, Progress: $PROGRESS%"
-  
+
   if [ "$STATUS" = "completed" ] || [ "$STATUS" = "failed" ]; then
     break
   fi
@@ -308,6 +308,7 @@ fi
 ##### Expected Responses
 
 **POST /jobs** - Create Job:
+
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -317,6 +318,7 @@ fi
 ```
 
 **GET /jobs/{jobId}** - Status (Processing):
+
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -329,6 +331,7 @@ fi
 ```
 
 **GET /jobs/{jobId}** - Status (Completed):
+
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -341,6 +344,7 @@ fi
 ```
 
 **GET /download/{jobId}** - Presigned URL:
+
 ```json
 {
   "url": "http://minio:9000/downloads/550e8400-e29b-41d4-a716-446655440000.bin?...",
@@ -350,6 +354,7 @@ fi
 ```
 
 **GET /health** - Health Check:
+
 ```json
 {
   "status": "healthy",

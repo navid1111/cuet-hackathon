@@ -16,14 +16,14 @@ This document describes the architecture for handling **long-running download op
 
 When processing file downloads that take 10-120+ seconds:
 
-| Issue | Impact |
-|-------|--------|
-| **Cloudflare Timeout** | 100s default timeout kills long HTTP connections |
-| **nginx Timeout** | Default 60s `proxy_read_timeout` drops requests |
-| **AWS ALB Timeout** | 60s idle timeout terminates connections |
-| **User Experience** | No feedback during long waits leads to confusion |
-| **Resource Exhaustion** | Holding connections consumes server memory |
-| **Retry Storms** | Dropped connections cause duplicate work |
+| Issue                   | Impact                                           |
+| ----------------------- | ------------------------------------------------ |
+| **Cloudflare Timeout**  | 100s default timeout kills long HTTP connections |
+| **nginx Timeout**       | Default 60s `proxy_read_timeout` drops requests  |
+| **AWS ALB Timeout**     | 60s idle timeout terminates connections          |
+| **User Experience**     | No feedback during long waits leads to confusion |
+| **Resource Exhaustion** | Holding connections consumes server memory       |
+| **Retry Storms**        | Dropped connections cause duplicate work         |
 
 ### Requirements
 
@@ -40,12 +40,12 @@ When processing file downloads that take 10-120+ seconds:
 
 ### Why Polling?
 
-| Pattern | Proxy Compatible | Complexity | Real-time | Chosen |
-|---------|-----------------|------------|-----------|--------|
-| **Polling** | ✅ All proxies | Low | ~1-3s delay | ✅ **YES** |
-| WebSocket | ⚠️ Requires config | High | Instant | ❌ |
-| SSE | ⚠️ May timeout | Medium | Instant | ❌ |
-| Webhook | ❌ Client needs endpoint | Medium | Instant | ❌ |
+| Pattern     | Proxy Compatible         | Complexity | Real-time   | Chosen     |
+| ----------- | ------------------------ | ---------- | ----------- | ---------- |
+| **Polling** | ✅ All proxies           | Low        | ~1-3s delay | ✅ **YES** |
+| WebSocket   | ⚠️ Requires config       | High       | Instant     | ❌         |
+| SSE         | ⚠️ May timeout           | Medium     | Instant     | ❌         |
+| Webhook     | ❌ Client needs endpoint | Medium     | Instant     | ❌         |
 
 **Decision**: Polling is the most reliable pattern that works with all proxy configurations without special setup.
 
@@ -260,6 +260,7 @@ When processing file downloads that take 10-120+ seconds:
 Create a new download job.
 
 **Request:**
+
 ```json
 {
   "payload": {
@@ -271,6 +272,7 @@ Create a new download job.
 ```
 
 **Response (200 OK):**
+
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -288,6 +290,7 @@ Create a new download job.
 Get the current status of a job.
 
 **Response (200 OK) - Queued:**
+
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -300,6 +303,7 @@ Get the current status of a job.
 ```
 
 **Response (200 OK) - Processing:**
+
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -312,6 +316,7 @@ Get the current status of a job.
 ```
 
 **Response (200 OK) - Completed:**
+
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -324,6 +329,7 @@ Get the current status of a job.
 ```
 
 **Response (200 OK) - Failed:**
+
 ```json
 {
   "jobId": "550e8400-e29b-41d4-a716-446655440000",
@@ -345,6 +351,7 @@ Get the current status of a job.
 Get a presigned URL for downloading the completed job result.
 
 **Response (200 OK):**
+
 ```json
 {
   "url": "http://minio:9000/downloads/550e8400-e29b-41d4-a716-446655440000.bin?X-Amz-Algorithm=...",
@@ -355,6 +362,7 @@ Get a presigned URL for downloading the completed job result.
 ```
 
 **Response (409 Conflict) - Job Not Completed:**
+
 ```json
 {
   "error": {
@@ -365,6 +373,7 @@ Get a presigned URL for downloading the completed job result.
 ```
 
 **Response (404 Not Found) - Job Not Found:**
+
 ```json
 {
   "error": {
@@ -383,6 +392,7 @@ Get a presigned URL for downloading the completed job result.
 Health check including storage and job queue status.
 
 **Response (200 OK):**
+
 ```json
 {
   "status": "healthy",
@@ -394,6 +404,7 @@ Health check including storage and job queue status.
 ```
 
 **Response (503 Service Unavailable):**
+
 ```json
 {
   "status": "unhealthy",
@@ -410,16 +421,16 @@ Health check including storage and job queue status.
 
 ### Job Entity
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `jobId` | UUID v4 | Unique identifier |
-| `status` | Enum | `queued` \| `processing` \| `completed` \| `failed` |
-| `progress` | Integer | 0-100 percentage |
-| `payload` | JSON | Original request payload |
-| `resultKey` | String | S3 object key (e.g., `downloads/{jobId}.bin`) |
-| `error` | String | Error message if failed |
-| `createdAt` | ISO 8601 | Job creation timestamp |
-| `updatedAt` | ISO 8601 | Last update timestamp |
+| Field       | Type     | Description                                         |
+| ----------- | -------- | --------------------------------------------------- |
+| `jobId`     | UUID v4  | Unique identifier                                   |
+| `status`    | Enum     | `queued` \| `processing` \| `completed` \| `failed` |
+| `progress`  | Integer  | 0-100 percentage                                    |
+| `payload`   | JSON     | Original request payload                            |
+| `resultKey` | String   | S3 object key (e.g., `downloads/{jobId}.bin`)       |
+| `error`     | String   | Error message if failed                             |
+| `createdAt` | ISO 8601 | Job creation timestamp                              |
+| `updatedAt` | ISO 8601 | Last update timestamp                               |
 
 ### Redis Key Schema
 
@@ -452,6 +463,7 @@ job:{jobId}:updatedAt          → ISO timestamp
 ```
 
 **Valid Transitions:**
+
 - `queued` → `processing` (worker picks up job)
 - `processing` → `completed` (job finished successfully)
 - `processing` → `failed` (job encountered error)
@@ -462,29 +474,29 @@ job:{jobId}:updatedAt          → ISO timestamp
 
 ### Request Timeouts
 
-| Component | Timeout | Rationale |
-|-----------|---------|-----------|
-| Cloudflare | 100s | Fixed, cannot change |
-| nginx | 60s default | Can configure higher |
-| AWS ALB | 60s default | Can configure up to 4000s |
-| **Our API requests** | **<2s** | Well under all limits ✓ |
+| Component            | Timeout     | Rationale                 |
+| -------------------- | ----------- | ------------------------- |
+| Cloudflare           | 100s        | Fixed, cannot change      |
+| nginx                | 60s default | Can configure higher      |
+| AWS ALB              | 60s default | Can configure up to 4000s |
+| **Our API requests** | **<2s**     | Well under all limits ✓   |
 
 ### Job Processing Timeouts
 
-| Operation | Timeout | Handling |
-|-----------|---------|----------|
-| Job processing | 180s max | Abort with `failed` status |
-| S3 upload | 30s | Retry up to 3 times with exponential backoff |
-| Redis operations | 5s | Fail fast, mark job as failed |
+| Operation        | Timeout  | Handling                                     |
+| ---------------- | -------- | -------------------------------------------- |
+| Job processing   | 180s max | Abort with `failed` status                   |
+| S3 upload        | 30s      | Retry up to 3 times with exponential backoff |
+| Redis operations | 5s       | Fail fast, mark job as failed                |
 
 ### Polling Configuration
 
-| Setting | Value | Rationale |
-|---------|-------|-----------|
-| Initial poll delay | 1s | Give job time to start |
-| Poll interval | 2-3s | Balance between responsiveness and load |
-| Max poll duration | 5 minutes | Prevent indefinite polling |
-| Presigned URL validity | 15 minutes | Security vs. convenience |
+| Setting                | Value      | Rationale                               |
+| ---------------------- | ---------- | --------------------------------------- |
+| Initial poll delay     | 1s         | Give job time to start                  |
+| Poll interval          | 2-3s       | Balance between responsiveness and load |
+| Max poll duration      | 5 minutes  | Prevent indefinite polling              |
+| Presigned URL validity | 15 minutes | Security vs. convenience                |
 
 ---
 
@@ -505,18 +517,19 @@ All error responses follow this structure:
 
 ### Error Codes
 
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| `VALIDATION_ERROR` | 400 | Invalid request payload |
-| `JOB_NOT_FOUND` | 404 | Job ID doesn't exist |
-| `JOB_NOT_COMPLETED` | 409 | Job still processing |
-| `STORAGE_UNAVAILABLE` | 503 | MinIO connection failed |
-| `QUEUE_UNAVAILABLE` | 503 | Redis connection failed |
-| `INTERNAL_ERROR` | 500 | Unexpected server error |
+| Code                  | HTTP Status | Description             |
+| --------------------- | ----------- | ----------------------- |
+| `VALIDATION_ERROR`    | 400         | Invalid request payload |
+| `JOB_NOT_FOUND`       | 404         | Job ID doesn't exist    |
+| `JOB_NOT_COMPLETED`   | 409         | Job still processing    |
+| `STORAGE_UNAVAILABLE` | 503         | MinIO connection failed |
+| `QUEUE_UNAVAILABLE`   | 503         | Redis connection failed |
+| `INTERNAL_ERROR`      | 500         | Unexpected server error |
 
 ### Retry Strategy
 
 **S3 Operations:**
+
 ```
 Attempt 1: Immediate
 Attempt 2: Wait 1s
@@ -525,6 +538,7 @@ Attempt 4: Wait 4s (final)
 ```
 
 **Redis Operations:**
+
 - Connection retry with exponential backoff
 - Fail fast for individual operations
 
@@ -558,17 +572,18 @@ Attempt 4: Wait 4s (final)
 ```
 
 **Key Points:**
+
 - Each instance runs both API and worker
 - Redis ensures only one worker processes each job (BRPOP is atomic)
 - Stateless API allows load balancing any request to any instance
 
 ### Bottlenecks & Mitigations
 
-| Bottleneck | Mitigation |
-|------------|------------|
-| Redis single point | Redis Cluster / Sentinel |
-| MinIO throughput | MinIO distributed mode |
-| Worker capacity | Scale instances horizontally |
+| Bottleneck         | Mitigation                   |
+| ------------------ | ---------------------------- |
+| Redis single point | Redis Cluster / Sentinel     |
+| MinIO throughput   | MinIO distributed mode       |
+| Worker capacity    | Scale instances horizontally |
 
 ---
 
@@ -577,11 +592,11 @@ Attempt 4: Wait 4s (final)
 ### React Hook Example
 
 ```tsx
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
 
 interface JobStatus {
   jobId: string;
-  status: 'queued' | 'processing' | 'completed' | 'failed';
+  status: "queued" | "processing" | "completed" | "failed";
   progress: number;
   downloadUrl: string | null;
   error?: string;
@@ -594,9 +609,9 @@ export function useDownloadJob() {
 
   // Create a new job
   const createJob = useCallback(async (payload: object) => {
-    const response = await fetch('/jobs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch("/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ payload }),
     });
     const data = await response.json();
@@ -616,11 +631,11 @@ export function useDownloadJob() {
         setStatus(data);
 
         // Stop polling when job is terminal
-        if (data.status === 'completed' || data.status === 'failed') {
+        if (data.status === "completed" || data.status === "failed") {
           setIsPolling(false);
         }
       } catch (error) {
-        console.error('Polling error:', error);
+        console.error("Polling error:", error);
       }
     }, 2000); // Poll every 2 seconds
 
@@ -655,18 +670,20 @@ function DownloadButton() {
     await createJob({ fileIds: [12345, 67890] });
   };
 
-  if (status?.status === 'completed') {
+  if (status?.status === "completed") {
     return (
-      <button onClick={async () => {
-        const url = await getDownloadUrl();
-        window.open(url, '_blank');
-      }}>
+      <button
+        onClick={async () => {
+          const url = await getDownloadUrl();
+          window.open(url, "_blank");
+        }}
+      >
         Download Ready!
       </button>
     );
   }
 
-  if (status?.status === 'processing') {
+  if (status?.status === "processing") {
     return <div>Processing... {status.progress}%</div>;
   }
 
@@ -693,7 +710,7 @@ while true
     set STATUS (curl -s http://localhost:3000/jobs/$JOB_ID | jq -r '.status')
     set PROGRESS (curl -s http://localhost:3000/jobs/$JOB_ID | jq -r '.progress')
     echo "Status: $STATUS, Progress: $PROGRESS%"
-    
+
     if test "$STATUS" = "completed" -o "$STATUS" = "failed"
         break
     end
@@ -771,9 +788,9 @@ services:
 
 ## Changelog
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0 | 2025-12-12 | Initial architecture design |
+| Version | Date       | Changes                     |
+| ------- | ---------- | --------------------------- |
+| 1.0.0   | 2025-12-12 | Initial architecture design |
 
 ---
 
