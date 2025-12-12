@@ -48,3 +48,4 @@ Thumbs.db
 
 # specs (local implementation tracking)
 specs/
+.specify/
