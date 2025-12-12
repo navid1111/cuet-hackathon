@@ -42,8 +42,8 @@ const EnvSchema = z.object({
   S3_FORCE_PATH_STYLE: z.coerce.boolean().default(false),
   REDIS_HOST: z.string().default("redis"),
   REDIS_PORT: z.coerce.number().int().min(1).max(65535).default(6379),
-  REDIS_DB: z.coerce.number().int().min(0).default(0),
   REDIS_PASSWORD: z.string().optional(),
+  REDIS_DB: z.coerce.number().int().min(0).default(0),
   SENTRY_DSN: optionalUrl,
   OTEL_EXPORTER_OTLP_ENDPOINT: optionalUrl,
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
@@ -82,6 +82,7 @@ const s3Client = new S3Client({
 const redis = new Redis({
   host: env.REDIS_HOST,
   port: env.REDIS_PORT,
+  password: env.REDIS_PASSWORD,
   db: env.REDIS_DB,
   retryStrategy: (times: number) => {
     if (times > 3) return null; // Stop retrying after 3 attempts
@@ -94,6 +95,7 @@ const redis = new Redis({
 const redisWorker = new Redis({
   host: env.REDIS_HOST,
   port: env.REDIS_PORT,
+  password: env.REDIS_PASSWORD,
   db: env.REDIS_DB,
   retryStrategy: (times: number) => {
     if (times > 3) return null;
