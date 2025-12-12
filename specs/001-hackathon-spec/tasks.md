@@ -114,10 +114,10 @@ Independent Test Criteria: GitHub Actions shows green for all jobs on PR/push; b
 
 Assignments: Sakib
 
-- [ ] T022 [P] [US3] Create `.github/workflows/ci.yml` with lint/format parallel jobs
-- [ ] T023 [P] [US3] Add E2E job that spins services via compose and runs `npm run test:e2e`
-- [ ] T024 [P] [US3] Add Docker build job (`docker build -f docker/Dockerfile.prod .`)
-- [ ] T025 [US3] Add CI badge to `README.md`
+- [X] T022 [P] [US3] Create `.github/workflows/ci.yml` with lint/format parallel jobs
+- [X] T023 [P] [US3] Add E2E job that spins services via compose and runs `npm run test:e2e`
+- [X] T024 [P] [US3] Add Docker build job (`docker build -f docker/Dockerfile.prod .`)
+- [X] T025 [US3] Add CI badge to `README.md`
 
 Checks:
 

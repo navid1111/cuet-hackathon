@@ -1,5 +1,7 @@
 # Delineate Hackathon Challenge - CUET Fest 2025
 
+[![CI](https://github.com/navid1111/cuet-hackathon/actions/workflows/ci.yml/badge.svg)](https://github.com/navid1111/cuet-hackathon/actions/workflows/ci.yml)
+
 ## The Scenario
 
 This microservice simulates a **real-world file download system** where processing times vary significantly:
@@ -53,6 +55,87 @@ curl -X POST http://localhost:3000/v1/download/start \
 | Challenge 3: CI/CD Pipeline         | 10         | Medium     |
 | Challenge 4: Observability (Bonus)  | 10         | Hard       |
 | **Maximum Total**                   | **50**     |            |
+
+---
+
+## CI/CD Pipeline
+
+### Pipeline Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        CI Pipeline Flow                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│    ┌──────────────┐                                                     │
+│    │   Install    │  ← Installs deps once, caches node_modules          │
+│    │ Dependencies │                                                     │
+│    └──────┬───────┘                                                     │
+│           │                                                             │
+│           ▼                                                             │
+│    ┌──────────────┐    ┌──────────────┐                                │
+│    │    Lint      │    │   Format     │  ← Run in PARALLEL             │
+│    │   (ESLint)   │    │   (Prettier) │    Restore cached node_modules │
+│    └──────┬───────┘    └──────┬───────┘                                │
+│           │                   │                                         │
+│           └─────────┬─────────┘                                         │
+│                     ▼                                                   │
+│           ┌──────────────────┐                                          │
+│           │    E2E Tests     │  ← Spins up Docker Compose services     │
+│           │ (with services)  │    Restore cached node_modules          │
+│           └────────┬─────────┘                                          │
+│                    ▼                                                    │
+│           ┌──────────────────┐                                          │
+│           │   Docker Build   │  ← Builds production image              │
+│           │  (layer cached)  │    Uses GitHub Actions cache            │
+│           └──────────────────┘                                          │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Caching Strategy
+
+The CI pipeline is optimized for **cost efficiency** and **speed** using a multi-layer caching approach:
+
+| Cache Type | What's Cached | Key | Used By |
+|------------|---------------|-----|---------|
+| **node_modules** | Installed npm packages | `node-modules-{hash(package-lock.json)}` | Lint, Format, Test |
+| **Docker layers** | Build layers via Buildx | GitHub Actions cache (`type=gha`) | Build job only |
+
+#### Why This Approach?
+
+1. **Single Install**: Dependencies are installed once in the `install` job, then cached
+2. **Parallel Execution**: Lint and Format jobs run simultaneously after install
+3. **Cache Reuse**: All Node.js jobs restore the same `node_modules` cache—no redundant `npm ci`
+4. **Docker Independence**: Docker build uses its own layer cache (Dockerfile has its own `npm ci`)
+5. **Concurrency Control**: Duplicate runs on the same branch are cancelled to save resources
+
+### Cost Optimization
+
+| Optimization | Benefit |
+|--------------|---------|
+| `concurrency.cancel-in-progress: true` | Cancels redundant runs on rapid pushes |
+| Shared `node_modules` cache | Avoids 3x `npm ci` calls per run |
+| Parallel lint/format | Reduces wall-clock time |
+| Docker layer cache | Incremental builds only rebuild changed layers |
+
+### Running Locally Before Push
+
+```bash
+# Run lint
+npm run lint
+
+# Run format check
+npm run format:check
+
+# Run E2E tests (requires services)
+docker compose -f docker/compose.dev.yml up -d
+npm run test:e2e
+docker compose -f docker/compose.dev.yml down
+
+# Build Docker image
+docker build -f docker/Dockerfile.prod .
+```
 
 ---
 
