@@ -4,6 +4,7 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { ZoneContextManager } from "@opentelemetry/context-zone";
 import { registerInstrumentations } from "@opentelemetry/instrumentation";
 import { FetchInstrumentation } from "@opentelemetry/instrumentation-fetch";
+import { trace } from "@opentelemetry/api";
 
 /**
  * Initialize OpenTelemetry tracing for the frontend application
@@ -31,6 +32,7 @@ export function initializeOpenTelemetry() {
           "service.name": "cuet-hackathon-frontend",
           "service.version": "1.0.0",
         },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
       spanProcessors: [spanProcessor], // Pass span processor in constructor config
     });
@@ -78,7 +80,6 @@ export function initializeOpenTelemetry() {
  */
 export function getTracer() {
   try {
-    const { trace } = require("@opentelemetry/api");
     return trace.getTracer("cuet-hackathon-frontend", "1.0.0");
   } catch (error) {
     console.error("Failed to get tracer:", error);
