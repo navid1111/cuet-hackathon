@@ -1,0 +1,55 @@
+name: CD
+
+on:
+  # Trigger after CI passes on main
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches: [main]
+
+  # Manual trigger
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to VM
+    runs-on: ubuntu-22.04
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key.pem
+          chmod 600 ~/.ssh/deploy_key.pem
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to VM
+        run: |
+          # Copy compose file to VM
+          scp -i ~/.ssh/deploy_key.pem docker/compose.prod.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/delineate/
+
+          # Deploy
+          ssh -i ~/.ssh/deploy_key.pem ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENDSSH'
+            cd /opt/delineate
+            export DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            docker compose -f compose.prod.yml pull
+            docker compose -f compose.prod.yml up -d
+            docker image prune -f
+          ENDSSH
+
+      - name: Health Check
+        run: |
+          SSH_CMD="ssh -i ~/.ssh/deploy_key.pem ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
+          echo "Waiting for service to start..."
+          sleep 20
+          $SSH_CMD "cd /opt/delineate && docker compose ps"
+          $SSH_CMD "curl -sf http://localhost:3000/health && echo 'Deployment successful!' || echo 'Health check failed'"
+
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.ssh/deploy_key.pem

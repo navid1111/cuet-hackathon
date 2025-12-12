@@ -2,6 +2,7 @@ name: delineate
 
 services:
   delineate-app:
+    image: ${DOCKERHUB_USERNAME:-delineate}/delineate:latest
     build:
       context: ..
       dockerfile: docker/Dockerfile.prod
