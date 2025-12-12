@@ -11,12 +11,14 @@
 # deps
 node_modules/
 
-# env
+# env - NEVER commit real credentials!
 .env
 .env.production
 .env.development
 .env.local
 .env.*.local
+
+# Only .env.example should be committed
 
 # logs
 logs/
