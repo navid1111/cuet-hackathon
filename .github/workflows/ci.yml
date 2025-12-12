@@ -151,10 +151,10 @@ jobs:
         env:
           DOCKER_BUILDKIT: 1
           COMPOSE_DOCKER_CLI_BUILD: 1
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
 
       - name: Tag and Push to Docker Hub
         run: |
-          docker tag delineate-delineate-app:latest ${{ secrets.DOCKERHUB_USERNAME }}/delineate:latest
-          docker tag delineate-delineate-app:latest ${{ secrets.DOCKERHUB_USERNAME }}/delineate:${{ github.sha }}
+          docker tag ${{ secrets.DOCKERHUB_USERNAME }}/delineate:latest ${{ secrets.DOCKERHUB_USERNAME }}/delineate:${{ github.sha }}
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/delineate:latest
           docker push ${{ secrets.DOCKERHUB_USERNAME }}/delineate:${{ github.sha }}
