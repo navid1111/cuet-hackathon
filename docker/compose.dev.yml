@@ -61,7 +61,8 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 admin changemechangeme;
       mc mb local/downloads --ignore-existing;
-      mc anonymous set download local/downloads;
+      mc anonymous set none local/downloads;
+      mc version enable local/downloads;
       exit 0;
       "
 
@@ -69,11 +70,11 @@ services:
     image: redis:7-alpine
     ports:
       - "6380:6379"
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass dev_redis_secure_password_123
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "dev_redis_secure_password_123", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5

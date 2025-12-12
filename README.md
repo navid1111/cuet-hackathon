@@ -789,6 +789,162 @@ curl -X POST http://localhost:3000/v1/download/start \
   -d '{"file_id": 70000}'
 ```
 
+## Frontend Observability Dashboard
+
+The project includes a React-based observability dashboard with real-time health monitoring, OpenTelemetry tracing, and Sentry error tracking.
+
+### Starting the Frontend
+
+```bash
+# From the project root
+cd frontend
+
+# Install dependencies (first time only)
+npm install
+
+# Start the development server
+npm run dev
+
+# Frontend will be available at:
+# http://localhost:5173
+```
+
+### Features
+
+The dashboard provides:
+
+- **Health Monitoring**: Real-time system health status with storage and jobs checks
+- **Jobs Management**: View and track download jobs (placeholder UI, requires Phase 4 implementation)
+- **OpenTelemetry Tracing**: Automatic trace collection for all HTTP requests
+- **Sentry Error Tracking**: Client-side error capture and reporting
+- **Error Boundary**: Graceful error handling with recovery options
+
+### OpenTelemetry & Jaeger
+
+The frontend automatically instruments all fetch requests and sends traces to Jaeger.
+
+**View Traces in Jaeger UI:**
+
+```bash
+# Jaeger UI is automatically started with docker compose
+# Access at: http://localhost:16686
+
+# 1. Select service: "cuet-hackathon-frontend"
+# 2. Click "Find Traces"
+# 3. You'll see traces for:
+#    - Health endpoint calls (/health)
+#    - Job API requests (when implemented)
+#    - All HTTP operations with timing data
+```
+
+**Trace Details Include:**
+
+- HTTP method and URL
+- Status codes
+- Request/response timing
+- Error information (if any)
+- Correlation with backend traces
+
+### Sentry Integration
+
+Sentry error tracking is configured but requires a DSN to be active.
+
+**Enable Sentry (Optional):**
+
+1. Sign up at https://sentry.io (free tier available)
+2. Create a new project (select "React")
+3. Copy your DSN
+4. Create `frontend/.env.local`:
+
+   ```bash
+   VITE_SENTRY_DSN=https://your-key@o000000.ingest.sentry.io/0000000
+   ```
+
+5. Restart the frontend dev server
+6. Click the "🐛 Test Sentry" button in the UI
+7. Check your Sentry dashboard for the error event
+
+**Without Sentry DSN:**
+
+The app will work normally but show a console warning:
+
+```
+⚠ Sentry DSN not configured. Error tracking disabled.
+```
+
+### Testing Error Handling
+
+**Test the Error Boundary:**
+
+Open browser DevTools Console and run:
+
+```javascript
+throw new Error("Test error boundary");
+```
+
+You'll see a friendly error page with:
+
+- Error details
+- "Try Again" button to reset
+- "Reload Page" button to refresh
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Frontend Architecture                        │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌────────────┐                                                 │
+│  │   Vite     │  ← Development server with HMR                  │
+│  │ Dev Server │    Proxies /api/* to backend (port 3000)        │
+│  └─────┬──────┘                                                 │
+│        │                                                         │
+│        ▼                                                         │
+│  ┌────────────────────────────────────────────────────────┐     │
+│  │              React Application                         │     │
+│  ├────────────────────────────────────────────────────────┤     │
+│  │                                                        │     │
+│  │  • ErrorBoundary (catches React errors)                │     │
+│  │  • HealthCard (polls /health every 5s)                 │     │
+│  │  • JobsList (placeholder for job management)           │     │
+│  │                                                        │     │
+│  └────────────┬───────────────────────┬───────────────────┘     │
+│               │                       │                         │
+│               ▼                       ▼                         │
+│    ┌──────────────────┐   ┌──────────────────┐                 │
+│    │  OpenTelemetry   │   │     Sentry       │                 │
+│    │   (Tracing)      │   │ (Error Tracking) │                 │
+│    └────────┬─────────┘   └────────┬─────────┘                 │
+│             │                      │                            │
+│             ▼                      ▼                            │
+│     ┌────────────────┐     ┌──────────────┐                    │
+│     │     Jaeger     │     │ Sentry.io    │                    │
+│     │ localhost:16686│     │   (Cloud)    │                    │
+│     └────────────────┘     └──────────────┘                    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Useful Commands
+
+```bash
+# Check if backend is running
+curl http://localhost:3000/health | jq
+
+# View Jaeger traces
+open http://localhost:16686
+
+# Check Jaeger service status
+docker compose -f docker/compose.dev.yml ps delineate-jaeger
+
+# View frontend in browser
+open http://localhost:5173
+
+# Build frontend for production
+cd frontend && npm run build
+```
+
 ## Available Scripts
 
 ```bash
