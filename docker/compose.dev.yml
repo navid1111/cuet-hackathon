@@ -1,5 +1,3 @@
-name: delineate
-
 services:
   delineate-app:
     build:
@@ -38,9 +36,11 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
+    env_file:
+      - ../.env
     environment:
-      - MINIO_ROOT_USER=${S3_ACCESS_KEY_ID:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${S3_SECRET_ACCESS_KEY:-minioadmin}
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=changemechangeme
     volumes:
       - minio-data:/data
     healthcheck:
@@ -58,7 +58,7 @@ services:
       - ../.env
     entrypoint: >
       /bin/sh -c "
-      mc alias set local http://minio:9000 $${S3_ACCESS_KEY_ID:-minioadmin} $${S3_SECRET_ACCESS_KEY:-minioadmin};
+      mc alias set local http://minio:9000 admin changemechangeme;
       mc mb local/downloads --ignore-existing;
       mc anonymous set none local/downloads;
       mc version enable local/downloads;
