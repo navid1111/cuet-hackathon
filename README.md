@@ -1002,7 +1002,6 @@ npm run docker:prod  # Start with Docker (production)
   <img width="1835" height="653" alt="image" src="https://github.com/user-attachments/assets/a919ba0f-e3e0-4b4a-a525-811be8974dad" />
   ### Challenge 4: Sentry Integration
 
-
 ## License
 
 MIT
