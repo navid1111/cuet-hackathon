@@ -235,6 +235,131 @@ Describe how a React/Next.js frontend would:
 4. Research: Redis, BullMQ, AWS SQS, Server-Sent Events, WebSockets
 5. Look into presigned S3 URLs for direct downloads
 
+#### Implemented Solution: Async Job API
+
+We implemented a **polling-based async architecture** using Redis for job queue management. See [`ARCHITECTURE.md`](./ARCHITECTURE.md) for the full design documentation.
+
+##### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/jobs` | POST | Create a new async job |
+| `/jobs/{jobId}` | GET | Get job status and progress |
+| `/download/{jobId}` | GET | Get presigned download URL |
+| `/health` | GET | Health check (includes `storage` and `jobs` checks) |
+
+##### Manual Testing with curl
+
+```fish
+# 1. Start the services
+docker compose -f docker/compose.dev.yml up -d
+
+# 2. Check health (should show storage: ok, jobs: ok)
+curl -s http://localhost:3000/health | jq
+
+# 3. Create a new job
+set JOB_ID (curl -s -X POST http://localhost:3000/jobs \
+  -H 'Content-Type: application/json' \
+  -d '{"payload":{"fileIds":[12345,67890],"format":"zip"}}' | jq -r '.jobId')
+
+echo "Created job: $JOB_ID"
+
+# 4. Poll for status (repeat until completed)
+curl -s http://localhost:3000/jobs/$JOB_ID | jq
+
+# 5. Get download URL (once status is "completed")
+curl -s http://localhost:3000/download/$JOB_ID | jq
+```
+
+##### Bash Version (for CI/other shells)
+
+```bash
+# 1. Start the services
+docker compose -f docker/compose.dev.yml up -d
+
+# 2. Check health
+curl -s http://localhost:3000/health | jq
+
+# 3. Create a new job
+JOB_ID=$(curl -s -X POST http://localhost:3000/jobs \
+  -H 'Content-Type: application/json' \
+  -d '{"payload":{"fileIds":[12345,67890]}}' | jq -r '.jobId')
+
+echo "Created job: $JOB_ID"
+
+# 4. Poll for status
+while true; do
+  STATUS=$(curl -s http://localhost:3000/jobs/$JOB_ID | jq -r '.status')
+  PROGRESS=$(curl -s http://localhost:3000/jobs/$JOB_ID | jq -r '.progress')
+  echo "Status: $STATUS, Progress: $PROGRESS%"
+  
+  if [ "$STATUS" = "completed" ] || [ "$STATUS" = "failed" ]; then
+    break
+  fi
+  sleep 2
+done
+
+# 5. Get download URL (if completed)
+if [ "$STATUS" = "completed" ]; then
+  curl -s http://localhost:3000/download/$JOB_ID | jq
+fi
+```
+
+##### Expected Responses
+
+**POST /jobs** - Create Job:
+```json
+{
+  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "queued",
+  "createdAt": "2025-12-12T10:30:00.000Z"
+}
+```
+
+**GET /jobs/{jobId}** - Status (Processing):
+```json
+{
+  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "processing",
+  "progress": 45,
+  "downloadUrl": null,
+  "createdAt": "2025-12-12T10:30:00.000Z",
+  "updatedAt": "2025-12-12T10:30:45.000Z"
+}
+```
+
+**GET /jobs/{jobId}** - Status (Completed):
+```json
+{
+  "jobId": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "completed",
+  "progress": 100,
+  "downloadUrl": "/download/550e8400-e29b-41d4-a716-446655440000",
+  "createdAt": "2025-12-12T10:30:00.000Z",
+  "updatedAt": "2025-12-12T10:32:15.000Z"
+}
+```
+
+**GET /download/{jobId}** - Presigned URL:
+```json
+{
+  "url": "http://minio:9000/downloads/550e8400-e29b-41d4-a716-446655440000.bin?...",
+  "expiresIn": 900,
+  "contentType": "application/octet-stream"
+}
+```
+
+**GET /health** - Health Check:
+```json
+{
+  "status": "healthy",
+  "checks": {
+    "storage": "ok",
+    "jobs": "ok"
+  }
+}
+```
+
 ---
 
 ### Challenge 3: CI/CD Pipeline Setup

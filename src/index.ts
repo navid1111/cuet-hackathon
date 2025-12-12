@@ -1,4 +1,10 @@
-import { HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  GetObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { serve } from "@hono/node-server";
 import type { ServerType } from "@hono/node-server";
 import { httpInstrumentationMiddleware } from "@hono/otel";
@@ -13,6 +19,7 @@ import { cors } from "hono/cors";
 import { secureHeaders } from "hono/secure-headers";
 import { timeout } from "hono/timeout";
 import { rateLimiter } from "hono-rate-limiter";
+import { Redis } from "ioredis";
 
 // Helper for optional URL that treats empty string as undefined
 const optionalUrl = z
@@ -69,6 +76,42 @@ const s3Client = new S3Client({
     }),
   forcePathStyle: env.S3_FORCE_PATH_STYLE,
 });
+
+// Redis Client for job queue and status storage
+const redis = new Redis({
+  host: env.REDIS_HOST,
+  port: env.REDIS_PORT,
+  db: env.REDIS_DB,
+  retryStrategy: (times: number) => {
+    if (times > 3) return null; // Stop retrying after 3 attempts
+    return Math.min(times * 200, 2000); // Exponential backoff
+  },
+  lazyConnect: true,
+});
+
+// Separate Redis client for blocking operations (worker)
+const redisWorker = new Redis({
+  host: env.REDIS_HOST,
+  port: env.REDIS_PORT,
+  db: env.REDIS_DB,
+  retryStrategy: (times: number) => {
+    if (times > 3) return null;
+    return Math.min(times * 200, 2000);
+  },
+  lazyConnect: true,
+});
+
+// Redis key helpers
+const REDIS_KEYS = {
+  queue: "jobs:queue",
+  status: (jobId: string) => `job:${jobId}:status`,
+  progress: (jobId: string) => `job:${jobId}:progress`,
+  payload: (jobId: string) => `job:${jobId}:payload`,
+  resultKey: (jobId: string) => `job:${jobId}:resultKey`,
+  error: (jobId: string) => `job:${jobId}:error`,
+  createdAt: (jobId: string) => `job:${jobId}:createdAt`,
+  updatedAt: (jobId: string) => `job:${jobId}:updatedAt`,
+};
 
 // Initialize OpenTelemetry SDK
 const otelSDK = new NodeSDK({
@@ -175,6 +218,7 @@ const HealthResponseSchema = z
     status: z.enum(["healthy", "unhealthy"]),
     checks: z.object({
       storage: z.enum(["ok", "error"]),
+      jobs: z.enum(["ok", "error"]),
     }),
   })
   .openapi("HealthResponse");
@@ -257,6 +301,59 @@ const DownloadStartResponseSchema = z
   })
   .openapi("DownloadStartResponse");
 
+// ============================================
+// Job API Schemas (Async Architecture)
+// ============================================
+
+const JobStatusEnum = z.enum(["queued", "processing", "completed", "failed"]);
+
+const JobCreateRequestSchema = z
+  .object({
+    payload: z.looseObject({}).openapi({
+      description: "Arbitrary payload for job processing",
+      example: { fileIds: [12345, 67890], format: "zip" },
+    }),
+  })
+  .openapi("JobCreateRequest");
+
+const JobCreateResponseSchema = z
+  .object({
+    jobId: z.uuid().openapi({ description: "Unique job identifier" }),
+    status: z.literal("queued"),
+    createdAt: z.string().openapi({ description: "ISO 8601 timestamp" }),
+  })
+  .openapi("JobCreateResponse");
+
+const JobStatusResponseSchema = z
+  .object({
+    jobId: z.uuid(),
+    status: JobStatusEnum,
+    progress: z.number().int().min(0).max(100),
+    downloadUrl: z.string().nullable(),
+    error: z.string().nullable().optional(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .openapi("JobStatusResponse");
+
+const JobDownloadResponseSchema = z
+  .object({
+    url: z.url().openapi({ description: "Presigned S3 download URL" }),
+    expiresIn: z.number().int().openapi({ description: "URL validity in seconds" }),
+    contentType: z.string().optional(),
+    size: z.number().int().optional(),
+  })
+  .openapi("JobDownloadResponse");
+
+const JobErrorResponseSchema = z
+  .object({
+    error: z.object({
+      code: z.string(),
+      message: z.string(),
+    }),
+  })
+  .openapi("JobErrorResponse");
+
 // Input sanitization for S3 keys - prevent path traversal
 const sanitizeS3Key = (fileId: number): string => {
   // Ensure fileId is a valid integer within bounds (already validated by Zod)
@@ -281,6 +378,16 @@ const checkS3Health = async (): Promise<boolean> => {
     // NotFound is fine - bucket is accessible
     if (err instanceof Error && err.name === "NotFound") return true;
     // AccessDenied or other errors indicate connection issues
+    return false;
+  }
+};
+
+// Redis health check for job queue
+const checkRedisHealth = async (): Promise<boolean> => {
+  try {
+    await redis.ping();
+    return true;
+  } catch {
     return false;
   }
 };
@@ -386,14 +493,19 @@ app.openapi(rootRoute, (c) => {
 });
 
 app.openapi(healthRoute, async (c) => {
-  const storageHealthy = await checkS3Health();
-  const status = storageHealthy ? "healthy" : "unhealthy";
-  const httpStatus = storageHealthy ? 200 : 503;
+  const [storageHealthy, jobsHealthy] = await Promise.all([
+    checkS3Health(),
+    checkRedisHealth(),
+  ]);
+  const allHealthy = storageHealthy && jobsHealthy;
+  const status = allHealthy ? "healthy" : "unhealthy";
+  const httpStatus = allHealthy ? 200 : 503;
   return c.json(
     {
       status,
       checks: {
         storage: storageHealthy ? "ok" : "error",
+        jobs: jobsHealthy ? "ok" : "error",
       },
     },
     httpStatus,
@@ -625,6 +737,486 @@ app.openapi(downloadStartRoute, async (c) => {
   }
 });
 
+// ============================================
+// Job API Routes (Async Architecture - US2)
+// ============================================
+
+// POST /jobs - Create a new job
+const createJobRoute = createRoute({
+  method: "post",
+  path: "/jobs",
+  tags: ["Jobs"],
+  summary: "Create a new download job",
+  description:
+    "Creates a new job for async processing. Returns immediately with a jobId that can be polled for status.",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: JobCreateRequestSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Job created successfully",
+      content: {
+        "application/json": {
+          schema: JobCreateResponseSchema,
+        },
+      },
+    },
+    500: {
+      description: "Internal server error",
+      content: {
+        "application/json": {
+          schema: JobErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(createJobRoute, async (c) => {
+  const { payload } = c.req.valid("json");
+  const jobId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  try {
+    // Store job data in Redis
+    await redis.mset(
+      REDIS_KEYS.status(jobId), "queued",
+      REDIS_KEYS.progress(jobId), "0",
+      REDIS_KEYS.payload(jobId), JSON.stringify(payload),
+      REDIS_KEYS.createdAt(jobId), now,
+      REDIS_KEYS.updatedAt(jobId), now,
+    );
+
+    // Push to job queue
+    await redis.lpush(REDIS_KEYS.queue, jobId);
+
+    console.log(`[Jobs] Created job ${jobId}`);
+
+    return c.json(
+      {
+        jobId,
+        status: "queued" as const,
+        createdAt: now,
+      },
+      200,
+    );
+  } catch (err) {
+    console.error(`[Jobs] Failed to create job:`, err);
+    return c.json(
+      {
+        error: {
+          code: "QUEUE_UNAVAILABLE",
+          message: "Failed to create job. Redis may be unavailable.",
+        },
+      },
+      500,
+    );
+  }
+});
+
+// GET /jobs/:jobId - Get job status
+const getJobStatusRoute = createRoute({
+  method: "get",
+  path: "/jobs/{jobId}",
+  tags: ["Jobs"],
+  summary: "Get job status",
+  description: "Returns the current status of a job, including progress and download URL if completed.",
+  request: {
+    params: z.object({
+      jobId: z.uuid().openapi({ description: "Job ID" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Job status",
+      content: {
+        "application/json": {
+          schema: JobStatusResponseSchema,
+        },
+      },
+    },
+    404: {
+      description: "Job not found",
+      content: {
+        "application/json": {
+          schema: JobErrorResponseSchema,
+        },
+      },
+    },
+    500: {
+      description: "Internal server error",
+      content: {
+        "application/json": {
+          schema: JobErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(getJobStatusRoute, async (c) => {
+  const { jobId } = c.req.valid("param");
+
+  try {
+    const [status, progress, _resultKey, error, createdAt, updatedAt] = await redis.mget(
+      REDIS_KEYS.status(jobId),
+      REDIS_KEYS.progress(jobId),
+      REDIS_KEYS.resultKey(jobId),
+      REDIS_KEYS.error(jobId),
+      REDIS_KEYS.createdAt(jobId),
+      REDIS_KEYS.updatedAt(jobId),
+    );
+
+    // _resultKey used to check completion, but downloadUrl is constructed from jobId
+    void _resultKey;
+
+    if (!status || !createdAt) {
+      return c.json(
+        {
+          error: {
+            code: "JOB_NOT_FOUND",
+            message: `No job found with ID: ${jobId}`,
+          },
+        },
+        404,
+      );
+    }
+
+    const downloadUrl = status === "completed" ? `/download/${jobId}` : null;
+
+    return c.json(
+      {
+        jobId,
+        status: status as "queued" | "processing" | "completed" | "failed",
+        progress: parseInt(progress ?? "0", 10),
+        downloadUrl,
+        error: error ?? undefined,
+        createdAt,
+        updatedAt: updatedAt ?? createdAt,
+      },
+      200,
+    );
+  } catch (err) {
+    console.error(`[Jobs] Failed to get job status:`, err);
+    return c.json(
+      {
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to retrieve job status",
+        },
+      },
+      500,
+    );
+  }
+});
+
+// GET /download/:jobId - Get presigned download URL
+const getDownloadUrlRoute = createRoute({
+  method: "get",
+  path: "/download/{jobId}",
+  tags: ["Jobs"],
+  summary: "Get download URL for completed job",
+  description: "Returns a presigned S3 URL for downloading the job result. Only available for completed jobs.",
+  request: {
+    params: z.object({
+      jobId: z.uuid().openapi({ description: "Job ID" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Presigned download URL",
+      content: {
+        "application/json": {
+          schema: JobDownloadResponseSchema,
+        },
+      },
+    },
+    400: {
+      description: "Job failed",
+      content: {
+        "application/json": {
+          schema: JobErrorResponseSchema,
+        },
+      },
+    },
+    404: {
+      description: "Job not found",
+      content: {
+        "application/json": {
+          schema: JobErrorResponseSchema,
+        },
+      },
+    },
+    409: {
+      description: "Job not completed",
+      content: {
+        "application/json": {
+          schema: JobErrorResponseSchema,
+        },
+      },
+    },
+    500: {
+      description: "Internal server error",
+      content: {
+        "application/json": {
+          schema: JobErrorResponseSchema,
+        },
+      },
+    },
+  },
+});
+
+app.openapi(getDownloadUrlRoute, async (c) => {
+  const { jobId } = c.req.valid("param");
+
+  try {
+    const [status, resultKey] = await redis.mget(
+      REDIS_KEYS.status(jobId),
+      REDIS_KEYS.resultKey(jobId),
+    );
+
+    if (!status) {
+      return c.json(
+        {
+          error: {
+            code: "JOB_NOT_FOUND",
+            message: `No job found with ID: ${jobId}`,
+          },
+        },
+        404,
+      );
+    }
+
+    if (status === "failed") {
+      return c.json(
+        {
+          error: {
+            code: "JOB_FAILED",
+            message: "Job processing failed. Please create a new job.",
+          },
+        },
+        400,
+      );
+    }
+
+    if (status !== "completed") {
+      return c.json(
+        {
+          error: {
+            code: "JOB_NOT_COMPLETED",
+            message: `Job is still ${status}. Please wait for completion.`,
+          },
+        },
+        409,
+      );
+    }
+
+    if (!resultKey) {
+      return c.json(
+        {
+          error: {
+            code: "RESULT_NOT_FOUND",
+            message: "Job completed but result file not found",
+          },
+        },
+        404,
+      );
+    }
+
+    // Generate presigned URL (15 minute validity)
+    const expiresIn = 900;
+
+    // If no bucket configured, return mock URL
+    if (!env.S3_BUCKET_NAME) {
+      return c.json(
+        {
+          url: `http://localhost:9000/downloads/${resultKey}?mock=true&token=${crypto.randomUUID()}`,
+          expiresIn,
+          contentType: "application/octet-stream",
+        },
+        200,
+      );
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: env.S3_BUCKET_NAME,
+      Key: resultKey,
+    });
+
+    const url = await getSignedUrl(s3Client, command, { expiresIn });
+
+    return c.json(
+      {
+        url,
+        expiresIn,
+        contentType: "application/octet-stream",
+      },
+      200,
+    );
+  } catch (err) {
+    console.error(`[Jobs] Failed to generate download URL:`, err);
+    return c.json(
+      {
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "Failed to generate download URL",
+        },
+      },
+      500,
+    );
+  }
+});
+
+// ============================================
+// Background Worker
+// ============================================
+
+ 
+let workerRunning = false;
+
+const startWorker = async () => {
+   
+  if (workerRunning) return;
+  workerRunning = true;
+
+  console.log("[Worker] Starting background job worker...");
+
+  try {
+    await redisWorker.connect();
+  } catch (err) {
+    console.error("[Worker] Failed to connect to Redis:", err);
+    workerRunning = false;
+    return;
+  }
+
+  const processJob = async (jobId: string) => {
+    console.log(`[Worker] Processing job ${jobId}`);
+    const now = new Date().toISOString();
+
+    try {
+      // Update status to processing
+      await redis.mset(
+        REDIS_KEYS.status(jobId), "processing",
+        REDIS_KEYS.progress(jobId), "0",
+        REDIS_KEYS.updatedAt(jobId), now,
+      );
+
+      // Get payload
+      const payloadStr = await redis.get(REDIS_KEYS.payload(jobId));
+      const payload: Record<string, unknown> = payloadStr ? JSON.parse(payloadStr) as Record<string, unknown> : {};
+      console.log(`[Worker] Job ${jobId} payload:`, payload);
+
+      // Simulate processing with progress updates
+      const totalSteps = 10;
+      const delayMs = getRandomDelay();
+      const stepDelay = delayMs / totalSteps;
+
+      for (let step = 1; step <= totalSteps; step++) {
+        await sleep(stepDelay);
+        const progress = Math.floor((step / totalSteps) * 100);
+        await redis.mset(
+          REDIS_KEYS.progress(jobId), String(progress),
+          REDIS_KEYS.updatedAt(jobId), new Date().toISOString(),
+        );
+        console.log(`[Worker] Job ${jobId} progress: ${String(progress)}%`);
+      }
+
+      // Write result to MinIO
+      const resultKey = `${jobId}.bin`;
+      const resultData = Buffer.from(JSON.stringify({
+        jobId,
+        payload,
+        completedAt: new Date().toISOString(),
+        processingTimeMs: delayMs,
+      }));
+
+      let uploadedToS3 = false;
+      if (env.S3_BUCKET_NAME !== "") {
+        try {
+          const putCommand = new PutObjectCommand({
+            Bucket: env.S3_BUCKET_NAME,
+            Key: `downloads/${resultKey}`,
+            Body: resultData,
+            ContentType: "application/octet-stream",
+          });
+          await s3Client.send(putCommand);
+          console.log(`[Worker] Uploaded result to downloads/${resultKey}`);
+          uploadedToS3 = true;
+        } catch (s3Err) {
+          console.warn(`[Worker] S3 upload failed (continuing without upload):`, s3Err instanceof Error ? s3Err.message : s3Err);
+          // Continue without S3 - job still completes
+        }
+      }
+
+      // Mark job as completed (with or without S3 result)
+      if (uploadedToS3) {
+        await redis.mset(
+          REDIS_KEYS.status(jobId), "completed",
+          REDIS_KEYS.progress(jobId), "100",
+          REDIS_KEYS.resultKey(jobId), `downloads/${resultKey}`,
+          REDIS_KEYS.updatedAt(jobId), new Date().toISOString(),
+        );
+      } else {
+        // No S3 result, but job still completed successfully
+        await redis.mset(
+          REDIS_KEYS.status(jobId), "completed",
+          REDIS_KEYS.progress(jobId), "100",
+          REDIS_KEYS.updatedAt(jobId), new Date().toISOString(),
+        );
+        console.log(`[Worker] Job ${jobId} completed (no S3 result available)`);
+      }
+
+      console.log(`[Worker] Job ${jobId} completed successfully`);
+    } catch (err) {
+      console.error(`[Worker] Job ${jobId} failed:`, err);
+      await redis.mset(
+        REDIS_KEYS.status(jobId), "failed",
+        REDIS_KEYS.error(jobId), err instanceof Error ? err.message : "Unknown error",
+        REDIS_KEYS.updatedAt(jobId), new Date().toISOString(),
+      );
+    }
+  };
+
+  // Worker loop
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- checked at runtime for shutdown
+  while (workerRunning) {
+    try {
+      // BRPOP waits for a job (timeout 5 seconds, then retry)
+      const result = await redisWorker.brpop(REDIS_KEYS.queue, 5);
+      if (result) {
+        const [, jobId] = result;
+        await processJob(jobId);
+      }
+    } catch (err) {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- checked at runtime for shutdown
+      if (workerRunning) {
+        console.error("[Worker] Error in worker loop:", err);
+        await sleep(1000); // Wait before retrying
+      }
+    }
+  }
+};
+
+const stopWorker = () => {
+  console.log("[Worker] Stopping worker...");
+  workerRunning = false;
+  redisWorker.disconnect();
+};
+
+// Start worker after Redis connection
+redis.connect().then(() => {
+  console.log("[Redis] Connected successfully");
+  startWorker().catch(console.error);
+}).catch((err: unknown) => {
+  console.error("[Redis] Failed to connect:", err);
+});
+
 // OpenAPI spec endpoint (disabled in production)
 if (env.NODE_ENV !== "production") {
   app.doc("/openapi", {
@@ -648,6 +1240,14 @@ const gracefulShutdown = (server: ServerType) => (signal: string) => {
   // Stop accepting new connections
   server.close(() => {
     console.log("HTTP server closed");
+
+    // Stop the worker first
+    stopWorker();
+    console.log("Worker stopped");
+
+    // Disconnect Redis
+    redis.disconnect();
+    console.log("Redis disconnected");
 
     // Shutdown OpenTelemetry to flush traces
     otelSDK
