@@ -373,7 +373,9 @@ const checkS3Health = async (): Promise<boolean> => {
   try {
     // Use a lightweight HEAD request on a known path with 2s timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => { controller.abort(); }, 2000);
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 2000);
 
     const command = new HeadObjectCommand({
       Bucket: env.S3_BUCKET_NAME,
