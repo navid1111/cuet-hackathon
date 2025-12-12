@@ -11,4 +11,58 @@ services:
       - ../.env
     environment:
       - NODE_ENV=production
+    depends_on:
+      - minio
+      - minio-setup
+      - redis
     restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-CHANGE_THIS_IN_PRODUCTION}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  minio-setup:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 admin $${MINIO_ROOT_PASSWORD:-CHANGE_THIS_IN_PRODUCTION};
+      mc mb local/downloads --ignore-existing;
+      mc anonymous set download local/downloads;
+      exit 0;
+      "
+    restart: on-failure
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  minio-data:
+  redis-data:

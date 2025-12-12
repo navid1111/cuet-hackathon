@@ -26,9 +26,9 @@ Parallel Execution Examples:
 
 ## Phase 1 — Setup
 
-- [ ] T001 Create baseline env files `.env.development` and `.env.production` at repo root
-- [ ] T002 Document local run steps in `README.md` (compose up, e2e, envs)
-- [ ] T003 Validate project scripts run: `npm run lint`, `npm run test:e2e` (adjust README if needed)
+- [X] T001 Create baseline env files `.env.development` and `.env.production` at repo root
+- [X] T002 Document local run steps in `README.md` (compose up, e2e, envs)
+- [X] T003 Validate project scripts run: `npm run lint`, `npm run test:e2e` (adjust README if needed)
 
 Checks:
 
@@ -40,8 +40,8 @@ Checks:
 
 ## Phase 2 — Foundational (blocking prerequisites)
 
-- [ ] T004 [P] Agree environment variable names in `README.md` and `.env.*` for MinIO and Redis
-- [ ] T005 Ensure `docker/compose.dev.yml` boots existing API container successfully
+- [X] T004 [P] Agree environment variable names in `README.md` and `.env.*` for MinIO and Redis
+- [X] T005 Ensure `docker/compose.dev.yml` boots existing API container successfully
 
 Checks:
 
@@ -57,14 +57,14 @@ Independent Test Criteria: Compose up creates `downloads` bucket; `/health` retu
 
 Assignments: Navid
 
-- [ ] T006 [P] [US1] Add `minio` service in `docker/compose.dev.yml`
-- [ ] T007 [P] [US1] Add `minio-setup` service with `mc` bucket init in `docker/compose.dev.yml`
-- [ ] T008 [P] [US1] Mirror `minio` and `minio-setup` in `docker/compose.prod.yml`
-- [ ] T009 [P] [US1] Add MinIO env vars to `.env.development` and `.env.production`
-- [ ] T010 [US1] Configure S3 client in `src/index.ts` using env vars
-- [ ] T011 [US1] Implement `/health` storage check in `src/index.ts`
-- [ ] T012 [P] [US1] Update `README.md` with storage setup and health contract
-- [ ] T013 [US1] Run E2E tests `npm run test:e2e` and ensure pass
+- [X] T006 [P] [US1] Add `minio` service in `docker/compose.dev.yml`
+- [X] T007 [P] [US1] Add `minio-setup` service with `mc` bucket init in `docker/compose.dev.yml`
+- [X] T008 [P] [US1] Mirror `minio` and `minio-setup` in `docker/compose.prod.yml`
+- [X] T009 [P] [US1] Add MinIO env vars to `.env.development` and `.env.production`
+- [X] T010 [US1] Configure S3 client in `src/index.ts` using env vars
+- [X] T011 [US1] Implement `/health` storage check in `src/index.ts`
+- [X] T012 [P] [US1] Update `README.md` with storage setup and health contract
+- [X] T013 [US1] Run E2E tests `npm run test:e2e` and ensure pass
 
 Checks:
 

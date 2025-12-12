@@ -14,6 +14,9 @@ node_modules/
 # env
 .env
 .env.production
+.env.development
+.env.local
+.env.*.local
 
 # logs
 logs/
@@ -24,6 +27,21 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# build
+dist/
+build/
+.next/
+.turbo/
+
 # misc
 .DS_Store
+Thumbs.db
 data/
+*.tmp
+*.swp
+*.swo
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db

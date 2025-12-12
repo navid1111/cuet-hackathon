@@ -33,6 +33,9 @@ const EnvSchema = z.object({
   S3_ENDPOINT: optionalUrl,
   S3_BUCKET_NAME: z.string().default(""),
   S3_FORCE_PATH_STYLE: z.coerce.boolean().default(false),
+  REDIS_HOST: z.string().default("redis"),
+  REDIS_PORT: z.coerce.number().int().min(1).max(65535).default(6379),
+  REDIS_DB: z.coerce.number().int().min(0).default(0),
   SENTRY_DSN: optionalUrl,
   OTEL_EXPORTER_OTLP_ENDPOINT: optionalUrl,
   REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1000).default(30000),
@@ -46,6 +49,8 @@ const EnvSchema = z.object({
   DOWNLOAD_DELAY_MIN_MS: z.coerce.number().int().min(0).default(10000), // 10 seconds
   DOWNLOAD_DELAY_MAX_MS: z.coerce.number().int().min(0).default(200000), // 200 seconds
   DOWNLOAD_DELAY_ENABLED: z.coerce.boolean().default(true),
+  // Feature flags
+  ENABLE_STORAGE: z.coerce.boolean().default(true),
 });
 
 // Parse and validate environment
@@ -262,6 +267,7 @@ const sanitizeS3Key = (fileId: number): string => {
 
 // S3 health check
 const checkS3Health = async (): Promise<boolean> => {
+  if (!env.ENABLE_STORAGE) return true; // Feature disabled
   if (!env.S3_BUCKET_NAME) return true; // Mock mode
   try {
     // Use a lightweight HEAD request on a known path

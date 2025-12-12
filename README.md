@@ -426,8 +426,16 @@ Errors in Sentry tagged with: trace_id=abc123
 # Install dependencies
 npm install
 
-# Create environment file
-cp .env.example .env
+# Create environment file (or use .env.development)
+cp .env.development .env
+# Or for production settings:
+# cp .env.production .env
+
+# Start services with Docker Compose (MinIO, Redis)
+docker compose -f docker/compose.dev.yml up -d
+
+# Verify services are running
+docker compose -f docker/compose.dev.yml ps
 
 # Start development server (with hot reload, 5-15s delays)
 npm run dev
@@ -441,6 +449,20 @@ The server will start at http://localhost:3000
 - API Documentation: http://localhost:3000/docs
 - OpenAPI Spec: http://localhost:3000/openapi
 
+### Verify Setup
+
+```bash
+# Check health endpoint (should show storage: ok)
+curl http://localhost:3000/health
+
+# Run E2E tests
+npm run test:e2e
+
+# Check lint and format
+npm run lint
+npm run format:check
+```
+
 ### Using Docker
 
 ```bash
@@ -450,6 +472,17 @@ npm run docker:dev
 # Production mode
 npm run docker:prod
 ```
+
+### Environment Variables
+
+| Variable | Development | Production | Description |
+|----------|------------|------------|-------------|
+| `MINIO_ENDPOINT` | `http://minio:9000` | `http://minio:9000` | MinIO S3-compatible storage |
+| `MINIO_ROOT_USER` | `admin` | `admin` | MinIO root username |
+| `MINIO_ROOT_PASSWORD` | `changemechangeme` | `CHANGE_THIS_IN_PRODUCTION` | MinIO root password |
+| `MINIO_BUCKET` | `downloads` | `downloads` | MinIO bucket name |
+| `REDIS_HOST` | `redis` | `redis` | Redis hostname |
+| `REDIS_PORT` | `6379` | `6379` | Redis port |
 
 ## Environment Variables
 

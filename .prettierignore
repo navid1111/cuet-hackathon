@@ -1,1 +1,16 @@
+# Data
 data/
+
+# Build output
+dist/
+build/
+coverage/
+
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Logs
+*.log
