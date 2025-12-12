@@ -77,12 +77,14 @@ const s3Client = new S3Client({
     }),
   forcePathStyle: env.S3_FORCE_PATH_STYLE,
 });
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/restrict-template-expressions */
 
 // Redis Client for job queue and status storage
 const redis = new Redis({
   host: env.REDIS_HOST,
   port: env.REDIS_PORT,
   db: env.REDIS_DB,
+  password: env.REDIS_PASSWORD,
   retryStrategy: (times: number) => {
     if (times > 3) return null; // Stop retrying after 3 attempts
     return Math.min(times * 200, 2000); // Exponential backoff
@@ -95,6 +97,7 @@ const redisWorker = new Redis({
   host: env.REDIS_HOST,
   port: env.REDIS_PORT,
   db: env.REDIS_DB,
+  password: env.REDIS_PASSWORD,
   retryStrategy: (times: number) => {
     if (times > 3) return null;
     return Math.min(times * 200, 2000);
