@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/react";
+import { addError } from "./errorStore";
 
 /**
  * Initialize Sentry error tracking for the frontend application
@@ -35,6 +36,30 @@ export function initializeSentry() {
 
       // Additional configuration
       beforeSend(event, hint) {
+        const error = hint.originalException;
+        const severity = event.level ?? "error";
+
+        const errorData = {
+          severity:
+            severity === "log" || severity === "debug" ? "info" : severity,
+          component: event.tags?.component as string,
+          errorType: event.tags?.errorType as string,
+          extra: event.extra,
+        };
+
+        if (error instanceof Error) {
+          addError(error, errorData);
+        } else if (typeof error === "string") {
+          addError(error, errorData);
+        } else {
+          addError(
+            new Error(
+              hint.syntheticException?.message || "Unknown Sentry error",
+            ),
+            errorData,
+          );
+        }
+
         // Log errors to console in development
         if (import.meta.env.MODE === "development") {
           console.error(

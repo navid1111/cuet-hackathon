@@ -1,6 +1,7 @@
 import "./App.css";
 import { HealthCard } from "./components/HealthCard";
 import { JobsList } from "./components/JobsList";
+import { ErrorsList } from "./components/ErrorsList";
 
 // Sentry test button
 function ErrorButton() {
@@ -118,6 +119,7 @@ function App() {
         </div>
 
         <JobsList />
+        <ErrorsList />
       </div>
     </div>
   );
